@@ -18,7 +18,7 @@ env.repository_url = ""
 env.cache_servers = []
 
 # Setup celery
-env.use_celery
+env.use_celery = False
 
 
 # Environments
