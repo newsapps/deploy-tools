@@ -6,11 +6,11 @@ A box of tools for deploying and running Django apps on the News Application Tea
 
 To use these tools, add this repo as a git submodule in the root of your project:
 
-	git submodule add xxxx tools
+	git submodule add https://github.com/newsapps/deploy-tools.git tools
 
 Then pull the example files in to the root of your project:
 
-	cp tools/examples ./
+	cp -Rf tools/examples ./
 
 Now edit the `fabfile.py` and adjust the settings for your project.
 
