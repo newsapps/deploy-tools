@@ -39,7 +39,7 @@ def branch(branch_name):
 # Commands - git
 @parallel
 def setup():
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
     require('branch', provided_by=[master, stable, branch])
 
     load_full_shell()
@@ -115,7 +115,7 @@ def install_requirements():
     """
     Install the required packages using pip.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
     load_full_shell()
     with prefix('workon %(project_name)s' % env):
         run('pip install -q -r %(path)s/requirements.txt' % env)
@@ -124,7 +124,7 @@ def install_requirements():
 @parallel
 @roles('app')
 def mk_cache_dir():
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
     sudo('mkdir /mnt/nginx-cache')
     sudo('chmod ugo+rwx /mnt/nginx-cache')
 
@@ -135,7 +135,7 @@ def deploy():
     """
     Deploy the latest version of the site to the server.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
     require('branch', provided_by=[master, stable, branch])
 
     with cd(env.path):
@@ -156,7 +156,7 @@ def reboot():
     """
     Reload the server.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
     execute(reboot_gunicorn)
     execute(reboot_celery)
 
@@ -180,8 +180,7 @@ def syncdb_destroy_database():
     """
     Run syncdb after destroying the database
     """
-
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     load_full_shell()
     destroy_database()
@@ -197,7 +196,7 @@ def create_database():
     """
     Creates the user and database for this project.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     if 'db_root_pass' not in env:
         env.db_root_pass = getpass("Database password: ")
@@ -215,7 +214,7 @@ def destroy_database():
     """
     Destroys the user and database for this project.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     if not env.db_root_pass:
         env.db_root_pass = getpass("Database password: ")
@@ -240,7 +239,7 @@ def load_data(dump_slug='dump'):
     Loads a sql dump file into the database. Takes an optional parameter
     to use in the sql dump file name.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     env.dump_slug = dump_slug
 
@@ -262,7 +261,7 @@ def dump_db(dump_slug='dump'):
     It can end up making the repository HUGE and the files can never
     be removed from the repo history.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     env.dump_slug = dump_slug
 
@@ -281,7 +280,7 @@ def put_dump(dump_slug='dump'):
     Upload a dump file to the chosen deployment target. Takes an optional
     parameter to use in the sql dump file name.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     env.dump_slug = dump_slug
     put('data/%(dump_slug)s.sql.bz2' % env,
@@ -305,7 +304,7 @@ def get_dump(dump_slug='dump'):
 
 @roles('admin')
 def do_migration(migration_script):
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     env.migration_script = migration_script
 
@@ -324,7 +323,7 @@ def clear_url(url):
     Takes a partial url ('/story/junk-n-stuff'), and purges it from the
     Varnish cache.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         for server in env.cache_servers:
@@ -337,7 +336,7 @@ def clear_cache():
     """
     Connects to varnish and purges the cache for the entire site. Be careful.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         for server in env.cache_servers:
@@ -350,7 +349,7 @@ def run_cron():
     """
     Connects to admin server and runs the cron script.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     run("%(path)s/cron_%(settings)s.sh" % env)
 
@@ -361,7 +360,7 @@ def shiva_the_destroyer():
     """
     Remove all directories, databases, etc. associated with the application.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     load_full_shell()
     with settings(warn_only=True):
