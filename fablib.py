@@ -57,7 +57,7 @@ def setup():
         run('git checkout %(branch)s' % env)
 
         # pull down all the submodules
-        # run('git submodule update --init --recursive')
+        run('git submodule update --init --recursive')
 
         # install the requirements
         execute(install_requirements)
@@ -149,7 +149,7 @@ def deploy():
         run('git pull')
 
         # pull down all the submodules
-        #run('git submodule update --init --recursive')
+        run('git submodule update --init --recursive')
 
 
 def reboot():
