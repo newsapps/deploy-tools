@@ -104,7 +104,7 @@ def install_nginx_conf():
     """
     Setup the nginx config file
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
     with cd(env.path):
         sudo('cp http/%(settings)s-nginx.conf ~/nginx/%(project_name)s' % env)
         sudo('service nginx reload')
@@ -294,7 +294,7 @@ def get_dump(dump_slug='dump'):
     Download a dump file from the chosen deployment target. Takes an optional
     parameter to use in the sql dump file name.
     """
-    require('settings', provided_by=[production, staging])
+    require('settings', provided_by=["production", "staging"])
 
     env.dump_slug = dump_slug
     get('%(repo_path)s/data/%(dump_slug)s.sql.bz2' % env,
