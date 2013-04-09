@@ -1,0 +1,4 @@
+*.pyc
+vagrant/assets/*pem
+vagrant/assets/ssh_config
+vagrant/assets/known_hosts

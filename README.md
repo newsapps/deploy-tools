@@ -2,6 +2,8 @@
 
 A box of tools for deploying and running Django apps on the News Application Team's rig.
 
+*Now with 100% more vagrancy*
+
 # Setup
 
 To use these tools, add this repo as a git submodule in the root of your project:
@@ -27,3 +29,12 @@ Not much. It's mainly a place to put fabric commands that are used in multiple p
 	0 * * * * /home/newsapps/sites/mynewsapp/cron_production.sh my_management_command
 
 `fabfile.py` is where you add your fabric deployment settings. The example fabfile loads fablib, which is where all the commonly used fab commands should go.
+
+`Vagrantfile` is configuration for [Vagrant](http://vagrantup.com/). Once you have vagrant installed, run `vagrant up` in the root of your project to start a local development machine. Use the vagrant target in fab to push your application to vagrant:
+
+  fab vagrant setup
+  fab vagrant create_database 
+
+# Vagrant
+
+The included vagrant file will setup a fresh server with MySQL, Nginx, PostgreSQL, PostGIS, PGPool2, Memcached and Redis. It should be capable of running any Python Tribune News Application. That said, it's missing a few important things: keys for pulling private git repositories, and Amazon keys for pushing files to S3 or otherwise interacting with EC2. The Vagrant box might also have trouble running all the services at once, so you might need to ssh in to stop any servers you're not using.

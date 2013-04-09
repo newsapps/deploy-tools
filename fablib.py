@@ -14,6 +14,38 @@ from boto.s3.key import Key
 import shutil
 
 
+# Local Vagrant target
+def vagrant():
+    """
+    Work on staging environment
+    """
+    env.settings = 'vagrant'
+    env.hosts = ['127.0.0.1:2222']
+    env.no_agent = True
+    env.key_filename = '~/.vagrant.d/insecure_private_key'
+
+    env.roledefs = {
+        'app': env.hosts,
+        'worker': env.hosts,
+        'admin': env.hosts
+    }
+
+    env.user = 'vagrant'
+
+    env.path = '/home/%(user)s/sites/%(project_name)s' % env
+    env.env_path = '/home/%(user)s/.virtualenvs/%(project_name)s' % env
+    env.repo_path = env.path
+
+    env.s3_bucket = '%(project_name)s-vagrant' % env
+    env.site_domain = '%(project_name)s.dev' % env
+
+    env.db_root_user = 'postgres'
+    env.db_root_pass = 'postgres'
+    env.db_host = '192.168.33.10'
+
+    env.django_settings_module = '%(project_name)s.vagrant_settings' % env
+
+
 # Branches
 def stable():
     """
@@ -39,35 +71,42 @@ def branch(branch_name):
 # Commands - git
 @parallel
 def setup():
-    require('settings', provided_by=["production", "staging"])
-    require('branch', provided_by=[master, stable, branch])
+    """
+    Setup the app on a server
+    This does the bare minimum to get an app up and running. Does not do
+    anything database related.
+    """
+    require('settings', provided_by=["production", "staging", "vagrant"])
+    if env.settings != "vagrant":
+        require('branch', provided_by=[master, stable, branch])
 
-    load_full_shell()
-    # create the directories
-    run('mkdir -p %(path)s' % env)
+    with load_full_shell():
+        # setup virtualenv
+        run('mkvirtualenv %(project_name)s' % env)
 
-    # setup virtualenv
-    run('mkvirtualenv %(project_name)s' % env)
+    if env.settings == 'vagrant':
+        run('ln -s /vagrant %(path)s' % env)
+    else:
+        # clone the project
+        run('git clone %(repository_url)s %(path)s' % env)
 
-    # clone the project
-    run('git clone %(repository_url)s %(path)s' % env)
+        with cd(env.path):
+            # make sure we're on the correct branch
+            run('git checkout %(branch)s' % env)
 
-    with cd(env.path):
-        # make sure we're on the correct branch
-        run('git checkout %(branch)s' % env)
+            # pull down all the submodules
+            run('git submodule update --init --recursive')
 
-        # pull down all the submodules
-        run('git submodule update --init --recursive')
-
-        # install the requirements
-        execute(install_requirements)
+    # install the requirements
+    install_requirements()
 
     # install the runit scripts for gunicorn and celery
-    execute(install_gunicorn)
-    execute(install_celery)
+    install_gunicorn()
+    if env.use_celery:
+        install_celery()
 
     # install the nginx configuration
-    execute(install_nginx_conf)
+    install_nginx_conf()
 
 
 @parallel
@@ -116,15 +155,18 @@ def install_requirements():
     Install the required packages using pip.
     """
     require('settings', provided_by=["production", "staging"])
-    load_full_shell()
-    with prefix('workon %(project_name)s' % env):
+
+    with load_full_shell(), prefix('workon %(project_name)s' % env):
         run('pip install -q -r %(path)s/requirements.txt' % env)
 
 
 @parallel
 @roles('app')
 def mk_cache_dir():
-    require('settings', provided_by=["production", "staging"])
+    """
+    Creates the directory that nginx uses for caching
+    """
+    require('settings', provided_by=["production", "staging", "vagrant"])
     sudo('mkdir /mnt/nginx-cache')
     sudo('chmod ugo+rwx /mnt/nginx-cache')
 
@@ -133,7 +175,8 @@ def mk_cache_dir():
 @parallel
 def deploy():
     """
-    Deploy the latest version of the site to the server.
+    Deploy the latest version of the site to the server. Only does git stuff,
+    no application or database stuff.
     """
     require('settings', provided_by=["production", "staging"])
     require('branch', provided_by=[master, stable, branch])
@@ -152,11 +195,12 @@ def deploy():
         run('git submodule update --init --recursive')
 
 
+@runs_once
 def reboot():
     """
     Reload the server.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
     execute(reboot_gunicorn)
     execute(reboot_celery)
 
@@ -180,14 +224,12 @@ def syncdb_destroy_database():
     """
     Run syncdb after destroying the database
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
 
-    load_full_shell()
     destroy_database()
     create_database()
 
-    with cd(env.path):
-        with prefix('workon %(project_name)s' % env):
+    with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
             run('DJANGO_SETTINGS_MODULE=%(django_settings_module)s ./manage.py syncdb --noinput' % env)
 
 
@@ -196,17 +238,21 @@ def create_database():
     """
     Creates the user and database for this project.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
 
     if 'db_root_pass' not in env:
         env.db_root_pass = getpass("Database password: ")
 
-    run('mysqladmin --host=%(db_host)s --user=%(db_root_user)s '
-        '--password=%(db_root_pass)s create %(project_name)s' % env)
-    run('echo "GRANT ALL ON * TO \'%(project_name)s\'@\'%%\' '
-        'IDENTIFIED BY \'%(database_password)s\';" | '
-        'mysql --host=%(db_host)s --user=%(db_root_user)s '
-        '--password=%(db_root_pass)s %(project_name)s' % env)
+    if env.db_type == 'postgresql':
+        run('echo "CREATE USER %(project_name)s WITH PASSWORD \'%(database_password)s\' CREATEUSER;" | PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s postgres' % env)
+        run('PGPASSWORD=%(db_root_pass)s createdb --host=%(db_host)s --username=%(db_root_user)s -O %(project_name)s %(project_name)s -T template_postgis' % env)
+    else:
+        run('mysqladmin --host=%(db_host)s --user=%(db_root_user)s '
+            '--password=%(db_root_pass)s create %(project_name)s' % env)
+        run('echo "GRANT ALL ON * TO \'%(project_name)s\'@\'%%\' '
+            'IDENTIFIED BY \'%(database_password)s\';" | '
+            'mysql --host=%(db_host)s --user=%(db_root_user)s '
+            '--password=%(db_root_pass)s %(project_name)s' % env)
 
 
 @roles('admin')
@@ -214,7 +260,7 @@ def destroy_database():
     """
     Destroys the user and database for this project.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
 
     if not env.db_root_pass:
         env.db_root_pass = getpass("Database password: ")
@@ -222,15 +268,21 @@ def destroy_database():
     with settings(warn_only=True):
         if confirm("Are you sure you want to drop "
                    "the %s database?" % env.settings):
-            run('mysqladmin -f --host=%(db_host)s '
-                '--user=%(db_root_user)s '
-                '--password=%(db_root_pass)s '
-                'drop %(project_name)s' % env)
-            run('echo "DROP USER '
-                '\'%(project_name)s\'@\'%%\';" | '
-                'mysql --host=%(db_host)s '
-                '--user=%(db_root_user)s '
-                '--password=%(db_root_pass)s' % env)
+            if env.db_type == 'postgresql':
+                sudo('sv stop %(project_name)s' % env)
+                run('PGPASSWORD=%(db_root_pass)s dropdb --host=%(db_host)s --username=%(db_root_user)s %(project_name)s' % env)
+                run('PGPASSWORD=%(db_root_pass)s dropuser --host=%(db_host)s --username=%(db_root_user)s %(project_name)s' % env)
+                sudo('sv start %(project_name)s' % env)
+            else:
+                run('mysqladmin -f --host=%(db_host)s '
+                    '--user=%(db_root_user)s '
+                    '--password=%(db_root_pass)s '
+                    'drop %(project_name)s' % env)
+                run('echo "DROP USER '
+                    '\'%(project_name)s\'@\'%%\';" | '
+                    'mysql --host=%(db_host)s '
+                    '--user=%(db_root_user)s '
+                    '--password=%(db_root_pass)s' % env)
 
 
 @roles('admin')
@@ -239,16 +291,19 @@ def load_data(dump_slug='dump'):
     Loads a sql dump file into the database. Takes an optional parameter
     to use in the sql dump file name.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
 
     env.dump_slug = dump_slug
 
     if not env.db_root_pass:
         env.db_root_pass = getpass("Database password: ")
 
-    run("bzcat %(repo_path)s/data/%(dump_slug)s.sql.bz2 "
-        "|mysql --host=%(db_host)s --user=%(db_root_user)s "
-        "--password=%(db_root_pass)s %(project_name)s" % env)
+    if env.db_type == 'postgresql':
+        run("bzcat %(repo_path)s/data/%(dump_slug)s.sql.bz2 |PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s %(project_name)s" % env)
+    else:
+        run("bzcat %(repo_path)s/data/%(dump_slug)s.sql.bz2 "
+            "|mysql --host=%(db_host)s --user=%(db_root_user)s "
+            "--password=%(db_root_pass)s %(project_name)s" % env)
 
 
 @roles('admin')
@@ -261,17 +316,20 @@ def dump_db(dump_slug='dump'):
     It can end up making the repository HUGE and the files can never
     be removed from the repo history.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
 
     env.dump_slug = dump_slug
 
     if not env.db_root_pass:
         env.db_root_pass = getpass("Database password: ")
 
-    run("mysqldump --host=%(db_host)s --user=%(db_root_user)s "
-        "--password=%(db_root_pass)s --quick --skip-lock-tables "
-        "%(project_name)s |bzip2 > "
-        "%(repo_path)s/data/%(dump_slug)s.sql.bz2" % env)
+    if env.db_type == 'postgresql':
+        run("PGPASSWORD=%(db_root_pass)s pg_dump --host=%(db_host)s --username=%(db_root_user)s %(project_name)s |bzip2 > %(repo_path)s/data/%(dump_slug)s.sql.bz2" % env)
+    else:
+        run("mysqldump --host=%(db_host)s --user=%(db_root_user)s "
+            "--password=%(db_root_pass)s --quick --skip-lock-tables "
+            "%(project_name)s |bzip2 > "
+            "%(repo_path)s/data/%(dump_slug)s.sql.bz2" % env)
 
 
 @roles('admin')
@@ -304,16 +362,19 @@ def get_dump(dump_slug='dump'):
 
 @roles('admin')
 def do_migration(migration_script):
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
 
     env.migration_script = migration_script
 
     if not env.db_root_pass:
         env.db_root_pass = getpass("Database password: ")
 
-    run("cat %(repo_path)s/migrations/%(migration_script)s.mysql "
-        "|mysql --host=%(db_host)s --user=%(db_root_user)s "
-        "--password=%(db_root_pass)s %(project_name)s" % env)
+    if env.db_type == 'postgresql':
+        run("cat %(repo_path)s/migrations/%(migration_script)s.psql |PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s %(project_name)s" % env)
+    else:
+        run("cat %(repo_path)s/migrations/%(migration_script)s.mysql "
+            "|mysql --host=%(db_host)s --user=%(db_root_user)s "
+            "--password=%(db_root_pass)s %(project_name)s" % env)
 
 
 # Commands - Cache
@@ -349,7 +410,7 @@ def run_cron():
     """
     Connects to admin server and runs the cron script.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
 
     run("%(path)s/cron_%(settings)s.sh" % env)
 
@@ -360,12 +421,12 @@ def shiva_the_destroyer():
     """
     Remove all directories, databases, etc. associated with the application.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "vagrant"])
 
-    load_full_shell()
     with settings(warn_only=True):
         # remove nginx config
-        run('rm ~/nginx/%(project_name)s' % env)
+        run('rm -f ~/nginx/%(project_name)s' % env)
+        sudo('service nginx reload')
 
         # remove runit service
         sudo('sv stop %(project_name)s' % env)
@@ -376,16 +437,15 @@ def shiva_the_destroyer():
             sudo('sv stop %(project_name)s_worker' % env)
             sudo('rm -Rf /etc/service/%(project_name)s_worker' % env)
 
-        # restart stuff
-        reboot()
+        with load_full_shell():
+            run('rmvirtualenv %(project_name)s' % env)
 
-        run('rmvirtualenv %(project_name)s' % env)
         run('rm -Rf %(path)s' % env)
 
 
 def load_full_shell():
     # Sometimes all the environment stuff doesn't get loaded.
-    env.command_prefixes.append('source /etc/bash_completion')
+    return prefix('source /etc/bash_completion')
 
 
 # Other utilities
