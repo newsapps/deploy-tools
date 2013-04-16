@@ -43,7 +43,12 @@ install_pkg build-essential python-setuptools python-dev zip \
     virtualenvwrapper libxml2-dev libxslt-dev libgeos-dev \
     libpq-dev postgresql-client mysql-client libmysqlclient-dev \
     runit proj libfreetype6-dev libjpeg-dev zlib1g-dev \
-    libgdal1-dev vim curl
+    libgdal1-dev vim curl python-software-properies
+
+# Get mapnik installed
+add-apt-repository ppa:mapnik/v2.1.0
+apt-get update
+install_pkg libmapnik mapnik-utils python-mapnik
 
 # install everything but the kitchen sink
 echo "Installing servers"
