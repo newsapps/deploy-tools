@@ -43,7 +43,7 @@ install_pkg build-essential python-setuptools python-dev zip \
     virtualenvwrapper libxml2-dev libxslt-dev libgeos-dev \
     libpq-dev postgresql-client mysql-client libmysqlclient-dev \
     runit proj libfreetype6-dev libjpeg-dev zlib1g-dev \
-    libgdal1-dev vim curl python-software-properies
+    libgdal1-dev vim curl python-software-properties
 
 # Get mapnik installed
 add-apt-repository ppa:mapnik/v2.1.0
