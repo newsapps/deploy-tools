@@ -7,11 +7,6 @@ from fabric.api import *
 from fabric.contrib.console import confirm
 from fabric.context_managers import cd
 from fabric.decorators import parallel, runs_once
-import tempfile
-import gzip
-from boto.s3.connection import S3Connection
-from boto.s3.key import Key
-import shutil
 
 
 # Local Vagrant target
@@ -377,6 +372,14 @@ def do_migration(migration_script):
             "--password=%(db_root_pass)s %(project_name)s" % env)
 
 
+# Management commands
+@roles('admin')
+def manage(command):
+    require('settings', provided_by=["production", "staging", "vagrant"])
+    with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
+        run('DJANGO_SETTINGS_MODULE=%s ./manage.py %s' % (env.django_settings_module, command))
+
+
 # Commands - Cache
 @roles('admin')
 def clear_url(url):
@@ -449,71 +452,77 @@ def load_full_shell():
 
 
 # Other utilities
-def deploy_to_s3():
-    directory = os.path.abspath("%(repo_path)s/%(project_name)s/assets" % env)
-    return _deploy_to_s3(directory, env.s3_bucket)
+try:
+    from boto.s3.connection import S3Connection
+    from boto.s3.key import Key
+    import tempfile
+    import gzip
+    import shutil
 
+    def deploy_to_s3():
+        directory = os.path.abspath("%(repo_path)s/%(project_name)s/assets" % env)
+        return _deploy_to_s3(directory, env.s3_bucket)
 
-def _deploy_to_s3(directory, bucket):
-    """
-    Deploy a directory to an s3 bucket, gzipping what can be gzipped.
-    Make sure you have the a boto config file, or have AWS_ACCESS_KEY_ID and
-    AWS_SECRET_ACCESS_KEY environment variables.
-    """
-    directory = directory.rstrip('/')
+    def _deploy_to_s3(directory, bucket):
+        """
+        Deploy a directory to an s3 bucket, gzipping what can be gzipped.
+        Make sure you have the a boto config file, or have AWS_ACCESS_KEY_ID and
+        AWS_SECRET_ACCESS_KEY environment variables.
+        """
+        directory = directory.rstrip('/')
 
-    tempdir = tempfile.mkdtemp(env['project_name'])
+        tempdir = tempfile.mkdtemp(env['project_name'])
 
-    conn = S3Connection()
-    bucket = conn.get_bucket(bucket)
-    existing_key_dict = dict((k.name, k) for k in bucket.list(env.project_name))
-    for keyname, absolute_path in _find_file_paths(directory):
-        remote_keyname = _s3_upload(keyname, absolute_path, bucket, tempdir)
-        try:
-            del existing_key_dict[remote_keyname]
-        except:
-            pass
+        conn = S3Connection()
+        bucket = conn.get_bucket(bucket)
+        existing_key_dict = dict((k.name, k) for k in bucket.list(env.project_name))
+        for keyname, absolute_path in _find_file_paths(directory):
+            remote_keyname = _s3_upload(keyname, absolute_path, bucket, tempdir)
+            try:
+                del existing_key_dict[remote_keyname]
+            except:
+                pass
 
-    for key_obj in existing_key_dict.values():
-        key_obj.delete()
-    shutil.rmtree(tempdir, True)
-    return True
+        for key_obj in existing_key_dict.values():
+            key_obj.delete()
+        shutil.rmtree(tempdir, True)
+        return True
 
+    def _s3_upload(keyname, absolute_path, bucket, tempdir):
+        """
+        Upload a file to s3
+        """
+        mimetype = mimetypes.guess_type(absolute_path)
+        options = {'Content-Type': mimetype[0]}
 
-def _s3_upload(keyname, absolute_path, bucket, tempdir):
-    """
-    Upload a file to s3
-    """
-    mimetype = mimetypes.guess_type(absolute_path)
-    options = {'Content-Type': mimetype[0]}
+        key_parts = keyname.split('/')
+        filename = key_parts.pop()
 
-    key_parts = keyname.split('/')
-    filename = key_parts.pop()
+        if mimetype[0] is not None and mimetype[0].startswith('text/'):
+            upload = open(absolute_path)
+            options['Content-Encoding'] = 'gzip'
+            temp_path = os.path.join(tempdir, filename)
+            gzfile = gzip.open(temp_path, 'wb')
+            gzfile.write(upload.read())
+            gzfile.close()
+            absolute_path = temp_path
 
-    if mimetype[0] is not None and mimetype[0].startswith('text/'):
-        upload = open(absolute_path)
-        options['Content-Encoding'] = 'gzip'
-        temp_path = os.path.join(tempdir, filename)
-        gzfile = gzip.open(temp_path, 'wb')
-        gzfile.write(upload.read())
-        gzfile.close()
-        absolute_path = temp_path
+        k = Key(bucket)
+        k.key = '%s/site_media/%s' % (env.project_name, keyname)
+        k.set_contents_from_filename(absolute_path, options, policy='public-read')
+        return k.key
 
-    k = Key(bucket)
-    k.key = '%s/site_media/%s' % (env.project_name, keyname)
-    k.set_contents_from_filename(absolute_path, options, policy='public-read')
-    return k.key
-
-
-def find_file_paths(directory):
-    """
-    A generator function that recursively finds all files in the
-    upload directory.
-    """
-    for root, dirs, files in os.walk(directory):
-        rel_path = os.path.relpath(root, directory)
-        for f in files:
-            if rel_path == '.':
-                yield (f, os.path.join(root, f))
-            else:
-                yield (os.path.join(rel_path, f), os.path.join(root, f))
+    def find_file_paths(directory):
+        """
+        A generator function that recursively finds all files in the
+        upload directory.
+        """
+        for root, dirs, files in os.walk(directory):
+            rel_path = os.path.relpath(root, directory)
+            for f in files:
+                if rel_path == '.':
+                    yield (f, os.path.join(root, f))
+                else:
+                    yield (os.path.join(rel_path, f), os.path.join(root, f))
+except ImportError:
+    pass
