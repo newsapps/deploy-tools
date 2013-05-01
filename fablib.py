@@ -39,6 +39,7 @@ def vagrant():
     env.db_host = '192.168.33.10'
 
     env.django_settings_module = '%(project_name)s.vagrant_settings' % env
+    print(colors.blue("--Vagrant will do all the jobs--"))
 
 
 # Branches
@@ -46,6 +47,7 @@ def stable():
     """
     Work on stable branch.
     """
+    print(colors.green('On stable'))
     env.branch = 'stable'
 
 
@@ -53,6 +55,7 @@ def master():
     """
     Work on development branch.
     """
+    print(colors.yellow('On master'))
     env.branch = 'master'
 
 
@@ -60,6 +63,7 @@ def branch(branch_name):
     """
     Work on any specified branch.
     """
+    print(colors.red('On %s' % branch_name))
     env.branch = branch_name
 
 
@@ -71,7 +75,7 @@ def setup():
     This does the bare minimum to get an app up and running. Does not do
     anything database related.
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
     if env.settings != "vagrant":
         require('branch', provided_by=[master, stable, branch])
 
@@ -117,7 +121,6 @@ def install_gunicorn():
         sudo('sv start %(project_name)s' % env)
 
 
-
 @parallel
 @roles('worker')
 def install_celery():
@@ -138,10 +141,10 @@ def install_nginx_conf():
     """
     Setup the nginx config file
     """
-    require('settings', provided_by=["production", "staging"])
-    with cd(env.path):
-        sudo('cp http/%(settings)s-nginx.conf ~/nginx/%(project_name)s' % env)
-        sudo('service nginx reload')
+    require('settings', provided_by=["production", "staging", "aws"])
+    sudo('rm ~/nginx/%(project_name)s' % env)
+    sudo('ln -s %(path)s/http/%(settings)s-nginx.conf ~/nginx/%(project_name)s' % env)
+    sudo('service nginx reload')
 
 
 @parallel
@@ -149,7 +152,7 @@ def install_requirements():
     """
     Install the required packages using pip.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "aws"])
 
     with load_full_shell(), prefix('workon %(project_name)s' % env):
         run('pip install -q -r %(path)s/requirements.txt' % env)
@@ -161,7 +164,7 @@ def mk_cache_dir():
     """
     Creates the directory that nginx uses for caching
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
     sudo('mkdir /mnt/nginx-cache')
     sudo('chmod ugo+rwx /mnt/nginx-cache')
 
@@ -173,7 +176,7 @@ def deploy():
     Deploy the latest version of the site to the server. Only does git stuff,
     no application or database stuff.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "aws"])
     require('branch', provided_by=[master, stable, branch])
 
     with cd(env.path):
@@ -195,7 +198,7 @@ def reboot():
     """
     Reload the server.
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
     execute(reboot_gunicorn)
     execute(reboot_celery)
 
@@ -219,7 +222,7 @@ def syncdb_destroy_database():
     """
     Run syncdb after destroying the database
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
     destroy_database()
     create_database()
@@ -233,7 +236,7 @@ def create_database():
     """
     Creates the user and database for this project.
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
     if 'db_root_pass' not in env:
         env.db_root_pass = getpass("Database password: ")
@@ -255,7 +258,7 @@ def destroy_database():
     """
     Destroys the user and database for this project.
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
     if not env.db_root_pass:
         env.db_root_pass = getpass("Database password: ")
@@ -286,7 +289,7 @@ def load_data(dump_slug='dump'):
     Loads a sql dump file into the database. Takes an optional parameter
     to use in the sql dump file name.
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
     env.dump_slug = dump_slug
 
@@ -311,7 +314,7 @@ def dump_db(dump_slug='dump'):
     It can end up making the repository HUGE and the files can never
     be removed from the repo history.
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
     env.dump_slug = dump_slug
 
@@ -333,7 +336,7 @@ def put_dump(dump_slug='dump'):
     Upload a dump file to the chosen deployment target. Takes an optional
     parameter to use in the sql dump file name.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "aws"])
 
     env.dump_slug = dump_slug
     put('data/%(dump_slug)s.sql.bz2' % env,
@@ -347,7 +350,7 @@ def get_dump(dump_slug='dump'):
     Download a dump file from the chosen deployment target. Takes an optional
     parameter to use in the sql dump file name.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "aws"])
 
     env.dump_slug = dump_slug
     get('%(repo_path)s/data/%(dump_slug)s.sql.bz2' % env,
@@ -357,7 +360,7 @@ def get_dump(dump_slug='dump'):
 
 @roles('admin')
 def do_migration(migration_script):
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
     env.migration_script = migration_script
 
@@ -375,7 +378,7 @@ def do_migration(migration_script):
 # Management commands
 @roles('admin')
 def manage(command):
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
     with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
         run('DJANGO_SETTINGS_MODULE=%s ./manage.py %s' % (env.django_settings_module, command))
 
@@ -387,7 +390,7 @@ def clear_url(url):
     Takes a partial url ('/story/junk-n-stuff'), and purges it from the
     Varnish cache.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "aws"])
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         for server in env.cache_servers:
@@ -400,7 +403,7 @@ def clear_cache():
     """
     Connects to varnish and purges the cache for the entire site. Be careful.
     """
-    require('settings', provided_by=["production", "staging"])
+    require('settings', provided_by=["production", "staging", "aws"])
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         for server in env.cache_servers:
@@ -413,7 +416,7 @@ def run_cron():
     """
     Connects to admin server and runs the cron script.
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
     run("%(path)s/cron_%(settings)s.sh" % env)
 
@@ -424,7 +427,7 @@ def shiva_the_destroyer():
     """
     Remove all directories, databases, etc. associated with the application.
     """
-    require('settings', provided_by=["production", "staging", "vagrant"])
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
     with settings(warn_only=True):
         # remove nginx config
@@ -453,11 +456,81 @@ def load_full_shell():
 
 # Other utilities
 try:
+    import boto
     from boto.s3.connection import S3Connection
     from boto.s3.key import Key
     import tempfile
     import gzip
     import shutil
+    from fabric import colors
+
+    ec2_conn = boto.connect_ec2()
+
+    def aws(cluster):
+        """
+        Looks in your Amazon account for instances tagged with this Cluster.
+
+        Also looks inside your cluster for instances tagged with Types `app`,
+        `admin`, and `worker`. To put multiple types on an instance, list them
+        comma-delimited.
+        """
+        reservations = ec2_conn.get_all_instances(
+            filters={
+                'tag:Cluster': cluster,
+                'instance-state-name': 'running'
+            })
+
+        servers = {'all': list()}
+        names = dict()
+        for r in reservations:
+            for i in r.instances:
+                name = i.public_dns_name
+                if 'User' in i.tags:
+                    name = "%s@%s" % (i.tags['User'], i.public_dns_name)
+                servers['all'].append(name)
+                names[i.public_dns_name] = i.tags.get('Name', '')
+                types = [t.strip().lower() for t in i.tags.get('Type', '').split(',')]
+                for t in types:
+                    if t in servers:
+                        servers[t].append(name)
+                    else:
+                        servers[t] = [name]
+
+        if len(servers['all']) is 0:
+            raise Exception("No servers found")
+
+        env.settings = cluster
+        env.user = 'newsapps'
+        #env.no_agent = True
+        #env.key_filename = '~/.vagrant.d/insecure_private_key'
+
+        env.hosts = servers['all']
+        print(colors.blue("--ALL THE SERVERS--"))
+        for h in env.hosts:
+            print colors.white(names[h]) + ' (%s)' % h
+
+        env.roledefs = {
+            'app': servers.get('app', list()),
+            'worker': servers.get('worker', list()),
+            'admin': servers.get('admin', list())
+        }
+        print(colors.blue("--SERVERS WITH JOBS--"))
+        for t, s in env.roledefs.items():
+            print colors.blue(t) + ': ' + ', '.join(
+                [colors.white(names[h]) for h in s])
+
+        env.path = '/home/%(user)s/sites/%(project_name)s' % env
+        env.env_path = '/home/%(user)s/.virtualenvs/%(project_name)s' % env
+        env.repo_path = env.path
+
+        env.s3_bucket = '%(project_name)s-%(settings)s' % env
+        #env.site_domain = '%(project_name)s.dev' % env
+
+        #env.db_root_user = 'postgres'
+        #env.db_root_pass = 'postgres'
+        #env.db_host = '192.168.33.10'
+
+        env.django_settings_module = '%(project_name)s.%(settings)s_settings' % env
 
     def deploy_to_s3():
         directory = os.path.abspath("%(repo_path)s/%(project_name)s/assets" % env)
