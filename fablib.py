@@ -142,7 +142,8 @@ def install_nginx_conf():
     Setup the nginx config file
     """
     require('settings', provided_by=["production", "staging", "aws"])
-    sudo('rm ~/nginx/%(project_name)s' % env)
+    with settings(hide('warnings'), warn_only=True):
+        sudo('rm ~/nginx/%(project_name)s' % env)
     sudo('ln -s %(path)s/http/%(settings)s-nginx.conf ~/nginx/%(project_name)s' % env)
     sudo('service nginx reload')
 
