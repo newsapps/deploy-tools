@@ -384,6 +384,16 @@ def manage(command):
         run('DJANGO_SETTINGS_MODULE=%s ./manage.py %s' % (env.django_settings_module, command))
 
 
+@parallel
+@roles('app')
+def collectstatic():
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
+        with settings(warn_only=True):
+            run('mkdir static')
+        run('DJANGO_SETTINGS_MODULE=%s ./manage.py collectstatic -c --noinput' % env.django_settings_module)
+
+
 # Commands - Cache
 @roles('admin')
 def clear_url(url):
