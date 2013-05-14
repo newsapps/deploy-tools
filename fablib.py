@@ -8,6 +8,7 @@ from fabric.contrib.console import confirm
 from fabric.context_managers import cd
 from fabric.decorators import parallel, runs_once
 
+env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
 
 # Local Vagrant target
 def vagrant():
