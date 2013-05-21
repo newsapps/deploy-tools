@@ -433,6 +433,28 @@ def run_cron():
     run("%(path)s/cron_%(settings)s.sh" % env)
 
 
+@parallel
+@roles('app')
+def web_logs():
+    """
+    Connect to all the servers and tail the logfiles
+    """
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+
+    run("tail -f ~/logs/%(project_name)s.error.log" % env)
+
+
+@parallel
+@roles('worker')
+def worker_logs():
+    """
+    Connect to all the servers and tail the logfiles
+    """
+    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+
+    run("tail -f ~/logs/%(project_name)s-worker.error.log" % env)
+
+
 # Death, destroyers of worlds
 @parallel
 def shiva_the_destroyer():
