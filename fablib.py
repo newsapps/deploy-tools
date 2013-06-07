@@ -10,6 +10,7 @@ from fabric.decorators import parallel, runs_once
 
 env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
 
+
 # Local Vagrant target
 def vagrant():
     """
@@ -39,7 +40,10 @@ def vagrant():
     env.db_root_pass = 'postgres'
     env.db_host = '192.168.33.10'
 
-    env.django_settings_module = '%(project_name)s.vagrant_settings' % env
+    if hasattr(env, "vagrant_settings_module"):
+        env.django_settings_module = env.vagrant_settings_module
+    else:
+        env.django_settings_module = '%(project_name)s.vagrant_settings' % env
     print(colors.blue("--Vagrant will do all the jobs--"))
 
 
