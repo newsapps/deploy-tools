@@ -204,14 +204,21 @@ def reboot():
     """
     Reload the server.
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
-    execute(reboot_gunicorn)
-    execute(reboot_celery)
+    require('settings',
+            provided_by=["production", "staging", "vagrant", "aws"])
+    if confirm("This will force services to restart and could cause errors for"
+               " users. You should probably use 'reload' instead. Do you wish"
+               " to continue?", default=False):
+        execute(reboot_gunicorn)
+        if env.use_celery:
+            execute(reboot_celery)
 
 
 @parallel
 @roles('app')
 def reboot_gunicorn():
+    print(colors.red(
+        "FORCING RESTART OF GUNICORN - You should use reload_gunicorn"))
     sudo('sv restart %(project_name)s' % env)
     sudo('service nginx reload')
 
@@ -219,8 +226,52 @@ def reboot_gunicorn():
 @parallel
 @roles('worker')
 def reboot_celery():
+    """
+    Force celery to restart
+    """
     if env.use_celery:
+        print(colors.red(
+            "FORCING RESTART OF CELERY - You should use reload_celery"))
         sudo('sv restart %(project_name)s_worker' % env)
+    else:
+        print(colors.red("You must set env.use_celery to True"))
+
+
+@runs_once
+def reload():
+    """
+    Gracefully reload code and configuration on the server.
+    """
+    require('settings',
+            provided_by=["production", "staging", "vagrant", "aws"])
+    execute(reload_gunicorn)
+    if env.use_celery:
+        execute(reload_celery)
+
+
+@parallel
+@roles('app')
+def reload_gunicorn():
+    """
+    Reload application code and nginx configuration
+    """
+    print(colors.green("Gracefully reloading gunicorn"))
+    sudo('sv hup %(project_name)s' % env)
+    sudo('service nginx reload')
+
+
+@parallel
+@roles('worker')
+def reload_celery():
+    """
+    Reload celery code
+    """
+    if env.use_celery:
+        print(colors.green("Gracefully reloading celery"))
+        sudo('sv hup %(project_name)s_worker' % env)
+    else:
+        print(colors.red("You must set env.use_celery to True"))
+
 
 
 @roles('admin')
@@ -228,7 +279,8 @@ def syncdb_destroy_database():
     """
     Run syncdb after destroying the database
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings',
+            provided_by=["production", "staging", "vagrant", "aws"])
 
     destroy_database()
     create_database()
@@ -242,7 +294,8 @@ def create_database():
     """
     Creates the user and database for this project.
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings',
+            provided_by=["production", "staging", "vagrant", "aws"])
 
     if 'db_root_pass' not in env:
         env.db_root_pass = getpass("Database password: ")
@@ -454,7 +507,8 @@ def worker_logs():
     """
     Connect to all the servers and tail the logfiles
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings',
+            provided_by=["production", "staging", "vagrant", "aws"])
 
     run("tail -f ~/logs/%(project_name)s-worker.error.log" % env)
 
@@ -463,9 +517,11 @@ def worker_logs():
 @parallel
 def shiva_the_destroyer():
     """
-    Remove all directories, databases, etc. associated with the application.
+    Remove all traces of the application from the servers. Does not
+    touch databases.
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings',
+            provided_by=["production", "staging", "vagrant", "aws"])
 
     with settings(warn_only=True):
         # remove nginx config
