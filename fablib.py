@@ -492,25 +492,31 @@ def run_cron():
 
 @parallel
 @roles('app')
-def web_logs():
+def weblogs():
     """
     Connect to all the servers and tail the logfiles
     """
     require('settings', provided_by=["production", "staging", "vagrant", "aws"])
 
-    run("tail -f ~/logs/%(project_name)s.error.log" % env)
+    try:
+        run("tail -f ~/logs/%(project_name)s.error.log" % env)
+    except KeyboardInterrupt:
+        pass
 
 
 @parallel
 @roles('worker')
-def worker_logs():
+def workerlogs():
     """
     Connect to all the servers and tail the logfiles
     """
     require('settings',
             provided_by=["production", "staging", "vagrant", "aws"])
 
-    run("tail -f ~/logs/%(project_name)s-worker.error.log" % env)
+    try:
+        run("tail -f ~/logs/%(project_name)s-worker.error.log" % env)
+    except KeyboardInterrupt:
+        pass
 
 
 # Death, destroyers of worlds
