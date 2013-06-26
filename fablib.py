@@ -9,6 +9,8 @@ from fabric.context_managers import cd
 from fabric.decorators import parallel, runs_once
 
 env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
+env.use_gunicorn = True
+env.use_nginx = True
 
 
 # Local Vagrant target
@@ -105,12 +107,15 @@ def setup():
     install_requirements()
 
     # install the runit scripts for gunicorn and celery
-    install_gunicorn()
+    if env.use_gunicorn:
+        install_gunicorn()
+
     if env.use_celery:
         install_celery()
 
     # install the nginx configuration
-    install_nginx_conf()
+    if env.use_nginx:
+        install_nginx_conf()
 
 
 @parallel
