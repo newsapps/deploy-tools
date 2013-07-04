@@ -46,7 +46,7 @@ install_pkg build-essential python-setuptools python-dev zip \
     libgdal1-dev vim curl python-software-properties
 
 # Get mapnik installed
-add-apt-repository ppa:mapnik/v2.1.0
+add-apt-repository ppa:mapnik/v2.2.0
 apt-get update
 install_pkg libmapnik mapnik-utils python-mapnik
 
