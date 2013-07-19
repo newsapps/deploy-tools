@@ -485,6 +485,17 @@ def clear_cache():
                 % (env.site_domain, server))
 
 
+@roles('app')
+def clear_nginx_cache():
+    """
+    Connects to all the app servers and deletes the cache for this site
+    """
+    require('settings', provided_by=["production", "staging", "aws"])
+
+    if confirm("Are you sure? This can bring the servers to their knees..."):
+        sudo('rm -Rf /mnt/nginx-cache/%(project_name)s/*' % env)
+
+
 @roles('admin')
 def run_cron():
     """
