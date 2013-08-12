@@ -701,7 +701,7 @@ try:
         k.set_contents_from_filename(absolute_path, options, policy='public-read')
         return k.key
 
-    def find_file_paths(directory):
+    def _find_file_paths(directory):
         """
         A generator function that recursively finds all files in the
         upload directory.
