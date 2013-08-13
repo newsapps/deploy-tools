@@ -395,31 +395,31 @@ def dump_db(dump_slug='dump'):
 
 
 @roles('admin')
-def put_dump(dump_slug='dump'):
+def put_dump(dump_file='dump.sql.bz2'):
     """
     Upload a dump file to the chosen deployment target. Takes an optional
-    parameter to use in the sql dump file name.
+    parameter to use for the file name.
     """
     require('settings', provided_by=["production", "staging", "aws"])
 
-    env.dump_slug = dump_slug
-    put('data/%(dump_slug)s.sql.bz2' % env,
-        '%(repo_path)s/data/%(dump_slug)s.sql.bz2' % env)
-    print('Put %(dump_slug)s.sql.bz2 on server.\n' % env)
+    env.dump_file = dump_file
+    put('data/%(dump_file)s' % env,
+        '%(repo_path)s/data/%(dump_file)s' % env)
+    print('Put %(dump_file)s on server.\n' % env)
 
 
 @roles('admin')
-def get_dump(dump_slug='dump'):
+def get_dump(dump_file='dump.sql.bz2'):
     """
     Download a dump file from the chosen deployment target. Takes an optional
-    parameter to use in the sql dump file name.
+    parameter to use for the file name.
     """
     require('settings', provided_by=["production", "staging", "aws"])
 
-    env.dump_slug = dump_slug
-    get('%(repo_path)s/data/%(dump_slug)s.sql.bz2' % env,
-        'data/%(dump_slug)s.sql.bz2' % env)
-    print('Got %(dump_slug)s.sql.bz2 from the server.\n' % env)
+    env.dump_file = dump_file
+    get('%(repo_path)s/data/%(dump_file)s' % env,
+        'data/%(dump_file)s' % env)
+    print('Got %(dump_file)s from the server.\n' % env)
 
 
 @roles('admin')
