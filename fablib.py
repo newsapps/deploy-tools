@@ -126,13 +126,19 @@ def install_gunicorn():
     Link up and install the runit script for gunicorn
     """
     with settings(hide('warnings'), warn_only=True):
-        sudo('mkdir /etc/service/%(project_name)s' % env)
-        if exists('%(path)s/run_%(settings)s_server.sh' % env):
-            sudo('ln -s %(path)s/run_%(settings)s_server.sh '
-                 '/etc/service/%(project_name)s/run' % env)
-        elif exists('%(path)s/tools/run_server.sh' % env):
-            sudo('echo "#!/bin/sh\n%(path)s/tools/run_server.sh %(settings)s %(project_name)s" > '
-                 '/etc/service/%(project_name)s/run' % env)
+        sudo('sv stop %(project_name)s' % env)
+        sudo('rm -Rf /etc/service/%(project_name)s' % env)
+
+    sudo('mkdir /etc/service/%(project_name)s' % env)
+    if exists('%(path)s/run_%(settings)s_server.sh' % env):
+        sudo('ln -s %(path)s/run_%(settings)s_server.sh '
+             '/etc/service/%(project_name)s/run' % env)
+    elif exists('%(path)s/tools/run_server.sh' % env):
+        sudo('echo "#!/bin/sh\n%(path)s/tools/run_server.sh %(settings)s %(project_name)s" > '
+             '/etc/service/%(project_name)s/run' % env)
+        sudo('chmod +x /etc/service/%(project_name)s/run' % env)
+
+    with settings(hide('warnings'), warn_only=True):
         sudo('sv start %(project_name)s' % env)
 
 
@@ -144,9 +150,14 @@ def install_celery():
     """
     if env.use_celery:
         with settings(hide('warnings'), warn_only=True):
-            sudo('mkdir /etc/service/%(project_name)s_worker' % env)
-            sudo('ln -s %(path)s/run_%(settings)s_worker.sh '
-                 '/etc/service/%(project_name)s_worker/run' % env)
+            sudo('sv stop %(project_name)s_worker' % env)
+            sudo('rm -Rf /etc/service/%(project_name)s_worker' % env)
+
+        sudo('mkdir /etc/service/%(project_name)s_worker' % env)
+        sudo('ln -s %(path)s/run_%(settings)s_worker.sh '
+             '/etc/service/%(project_name)s_worker/run' % env)
+
+        with settings(hide('warnings'), warn_only=True):
             sudo('sv start %(project_name)s_worker' % env)
 
 

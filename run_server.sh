@@ -47,8 +47,8 @@ fi
 
 cd $ROOT
 exec $GUNICORN --bind=unix:$SOCKET --workers=$WORKERS \
-    --keep-alive=0 \
-    --worker-class=gevent --name=$PROJECT --pid=$PID \
-    --error-logfile=$ERROR_LOG \
+    --keep-alive=0 --max-requests=1000 --user=www-data \
+    --group=www-data --name=$PROJECT \
+    --worker-class=gevent --pid=$PID --error-logfile=$ERROR_LOG \
     $WSGI_MODULE
 
