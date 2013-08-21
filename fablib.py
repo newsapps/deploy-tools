@@ -5,6 +5,7 @@ import os
 
 from fabric.api import *
 from fabric.contrib.console import confirm
+from fabric.contrib.files import exists
 from fabric.context_managers import cd
 from fabric.decorators import parallel, runs_once
 
@@ -126,8 +127,12 @@ def install_gunicorn():
     """
     with settings(hide('warnings'), warn_only=True):
         sudo('mkdir /etc/service/%(project_name)s' % env)
-        sudo('ln -s %(path)s/run_%(settings)s_server.sh '
-             '/etc/service/%(project_name)s/run' % env)
+        if exists('%(path)s/run_%(settings)s_server.sh' % env):
+            sudo('ln -s %(path)s/run_%(settings)s_server.sh '
+                 '/etc/service/%(project_name)s/run' % env)
+        elif exists('%(path)s/tools/run_server.sh' % env):
+            sudo('echo "#!/bin/sh\n%(path)s/tools/run_server.sh %(settings)s %(project_name)s" > '
+                 '/etc/service/%(project_name)s/run' % env)
         sudo('sv start %(project_name)s' % env)
 
 
