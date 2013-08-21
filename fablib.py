@@ -134,11 +134,13 @@ def install_gunicorn():
         sudo('ln -s %(path)s/run_%(settings)s_server.sh '
              '/etc/service/%(project_name)s/run' % env)
     elif exists('%(path)s/tools/run_server.sh' % env):
-        sudo('echo "#!/bin/sh\n%(path)s/tools/run_server.sh %(settings)s %(project_name)s" > '
+        sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s" > '
              '/etc/service/%(project_name)s/run' % env)
         sudo('chmod +x /etc/service/%(project_name)s/run' % env)
 
     with settings(hide('warnings'), warn_only=True):
+        sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s.error.log' % env)
+        sudo('chgrp www-data /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('sv start %(project_name)s' % env)
 
 
