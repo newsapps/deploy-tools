@@ -8,6 +8,7 @@ from fabric.contrib.console import confirm
 from fabric.contrib.files import exists
 from fabric.context_managers import cd
 from fabric.decorators import parallel, runs_once
+from fabric import colors
 
 env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
 env.use_gunicorn = True
