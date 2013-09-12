@@ -189,6 +189,19 @@ def install_requirements():
 
 
 @parallel
+def rebuild_requirements():
+    """
+    Remove the virtualenv and rebuild it from scratch
+    """
+    require('settings', provided_by=["production", "staging", "aws"])
+
+    with load_full_shell():
+        run('rmvirtualenv %(project_name)s' % env)
+        run('mkvirtualenv %(project_name)s' % env)
+        install_requirements()
+
+
+@parallel
 @roles('app')
 def mk_cache_dir():
     """
@@ -597,7 +610,6 @@ try:
     import tempfile
     import gzip
     import shutil
-    from fabric import colors
 
     ec2_conn = boto.connect_ec2()
 
