@@ -41,6 +41,6 @@ fi
 
 . $VIRTUAL_ENV/bin/activate
 cd $ROOT
-exec setuidgid $USE_ACCOUNT $CELERY \
+exec chpst -u $USE_ACCOUNT $CELERY \
     --concurrency=$WORKERS --pool=gevent --logfile=$ERROR_LOG \
     --events --maxtasksperchild=100
