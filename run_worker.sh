@@ -5,7 +5,7 @@ E_BADARGS=65
 if [ $# -ne $EXPECTED_ARGS ]
 then
   echo "Usage: `basename $0` <deploy target> <projectname> [num workers]"
-  echo "Run a gunicorn server for the app in /home/newsapps/sites/projectname."
+  echo "Run a celery server for the app in /home/newsapps/sites/projectname."
   exit $E_BADARGS
 fi
 
@@ -15,23 +15,22 @@ WORKERS=${3:-'2'}
 
 USE_ACCOUNT=www-data
 ROOT=/home/newsapps/sites/$PROJECT
-GUNICORN=/home/newsapps/.virtualenvs/$PROJECT/bin/gunicorn
-SOCKET=/tmp/$PROJECT.sock
+VIRTUAL_ENV=/home/newsapps/.virtualenvs/$PROJECT
 ERROR_LOG=/home/newsapps/logs/$PROJECT.error.log
 SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
 
 if [ -f $ROOT/application.py ]
 then
-  WSGI_MODULE=application
+  CELERY="celery worker"
 else
   if [ -d $ROOT/$PROJECT/configs ]
   then
     export DJANGO_SETTINGS_MODULE=$PROJECT.configs.$TARGET.settings
     export PYTHONPATH=$ROOT/$PROJECT:$ROOT
-    WSGI_MODULE=$PROJECT.configs.$TARGET.wsgi
+    CELERY="$ROOT/manage.py celery worker"
   else
     export DJANGO_SETTINGS_MODULE=$PROJECT.${TARGET}_settings
-    WSGI_MODULE=$PROJECT.wsgi
+    CELERY="$ROOT/manage.py celery worker"
   fi
 fi
 
@@ -40,10 +39,8 @@ then
   . $SECRETS
 fi
 
+. $VIRTUAL_ENV/bin/activate
 cd $ROOT
-exec $GUNICORN --bind=unix:$SOCKET --workers=$WORKERS \
-    --keep-alive=0 --max-requests=1000 --user=www-data \
-    --group=$USE_ACCOUNT --name=$PROJECT \
-    --worker-class=gevent --error-logfile=$ERROR_LOG \
-    $WSGI_MODULE
-
+exec setuidgid $USE_ACCOUNT $CELERY \
+    --concurrency=$WORKERS --pool=gevent --logfile=$ERROR_LOG \
+    --events --maxtasksperchild=100

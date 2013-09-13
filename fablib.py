@@ -13,6 +13,8 @@ from fabric import colors
 env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
 env.use_gunicorn = True
 env.use_nginx = True
+env.guincorn_workers = 2
+env.celery_workers = 2
 
 
 # Local Vagrant target
@@ -135,7 +137,7 @@ def install_gunicorn():
         sudo('ln -s %(path)s/run_%(settings)s_server.sh '
              '/etc/service/%(project_name)s/run' % env)
     elif exists('%(path)s/tools/run_server.sh' % env):
-        sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s" > '
+        sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s" > '
              '/etc/service/%(project_name)s/run' % env)
         sudo('chmod +x /etc/service/%(project_name)s/run' % env)
 
@@ -157,11 +159,19 @@ def install_celery():
             sudo('rm -Rf /etc/service/%(project_name)s_worker' % env)
 
         sudo('mkdir /etc/service/%(project_name)s_worker' % env)
-        sudo('ln -s %(path)s/run_%(settings)s_worker.sh '
-             '/etc/service/%(project_name)s_worker/run' % env)
+        if exists('%(path)s/run_%(settings)s_worker.sh' % env):
+            sudo('ln -s %(path)s/run_%(settings)s_worker.sh '
+                 '/etc/service/%(project_name)s_worker/run' % env)
+        elif exists('%(path)s/tools/run_worker.sh' % env):
+            sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_worker.sh %(settings)s %(project_name)s %(celery_workers)s" > '
+                 '/etc/service/%(project_name)s_worker/run' % env)
+            sudo('chmod +x /etc/service/%(project_name)s_worker/run' % env)
 
         with settings(hide('warnings'), warn_only=True):
+            sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s-worker.error.log' % env)
+            sudo('chgrp www-data /home/newsapps/logs/%(project_name)s-worker.error.log' % env)
             sudo('sv start %(project_name)s_worker' % env)
+
 
 
 @parallel
