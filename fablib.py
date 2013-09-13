@@ -13,7 +13,7 @@ from fabric import colors
 env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
 env.use_gunicorn = True
 env.use_nginx = True
-env.guincorn_workers = 2
+env.gunicorn_workers = 2
 env.celery_workers = 2
 
 
