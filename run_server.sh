@@ -2,7 +2,7 @@
 EXPECTED_ARGS=2
 E_BADARGS=65
 
-if [ $# -ne $EXPECTED_ARGS ]
+if [ $# -lt $EXPECTED_ARGS ]
 then
   echo "Usage: `basename $0` <deploy target> <projectname> [num workers]"
   echo "Run a gunicorn server for the app in /home/newsapps/sites/projectname."
