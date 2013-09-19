@@ -142,6 +142,7 @@ def install_gunicorn():
         sudo('chmod +x /etc/service/%(project_name)s/run' % env)
 
     with settings(hide('warnings'), warn_only=True):
+        sudo('touch /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('chgrp www-data /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('sv start %(project_name)s' % env)
@@ -168,10 +169,10 @@ def install_celery():
             sudo('chmod +x /etc/service/%(project_name)s_worker/run' % env)
 
         with settings(hide('warnings'), warn_only=True):
+            sudo('touch /home/newsapps/logs/%(project_name)s-worker.error.log' % env)
             sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s-worker.error.log' % env)
             sudo('chgrp www-data /home/newsapps/logs/%(project_name)s-worker.error.log' % env)
             sudo('sv start %(project_name)s_worker' % env)
-
 
 
 @parallel
