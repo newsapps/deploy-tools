@@ -513,7 +513,7 @@ def manage(command):
 @roles('app')
 def collectstatic():
     require('settings', provided_by=SETTINGS_PROVIDERS)
-    with workon_project():
+    with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
         run('git rev-parse HEAD |cut -c 1-6 > CACHEBUSTER')
         if env.use_django_static:
             with settings(warn_only=True):
