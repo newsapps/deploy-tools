@@ -515,7 +515,7 @@ def collectstatic():
     require('settings', provided_by=SETTINGS_PROVIDERS)
     with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
         run('git rev-parse HEAD |cut -c 1-6 > CACHEBUSTER')
-        if env.use_django_static:
+        if env.use_django_static and hasattr(env, 'django_settings_module'):
             with settings(warn_only=True):
                 run('mkdir static')
             run('DJANGO_SETTINGS_MODULE=%s ./manage.py collectstatic -c --noinput' % env.django_settings_module)
