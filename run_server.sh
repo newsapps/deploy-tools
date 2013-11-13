@@ -22,6 +22,7 @@ SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
 
 if [ -f $ROOT/application.py ]
 then
+  export CONFIG_MODULE=${TARGET}_config
   WSGI_MODULE=application
 else
   if [ -d $ROOT/$PROJECT/configs ]
