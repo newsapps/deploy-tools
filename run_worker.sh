@@ -17,6 +17,7 @@ USE_ACCOUNT=www-data
 ROOT=/home/newsapps/sites/$PROJECT
 VIRTUAL_ENV=/home/newsapps/.virtualenvs/$PROJECT
 ERROR_LOG=/home/newsapps/logs/$PROJECT.error.log
+WORKER_ERROR_LOG=/home/newsapps/logs/$PROJECT-worker.error.log
 SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
 
 if [ -f $ROOT/application.py ]
@@ -42,5 +43,5 @@ fi
 . $VIRTUAL_ENV/bin/activate
 cd $ROOT
 exec chpst -u $USE_ACCOUNT $CELERY \
-    --concurrency=$WORKERS --pool=gevent --logfile=$ERROR_LOG \
+    --concurrency=$WORKERS --pool=gevent --logfile=$WORKER_ERROR_LOG \
     --events --maxtasksperchild=100
