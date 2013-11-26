@@ -202,7 +202,7 @@ def install_nginx_conf():
 @parallel
 def install_requirements():
     """
-    Install the required packages using pip.
+    Install the required packages with pip.
     """
     require('settings', provided_by=SETTINGS_PROVIDERS)
 
