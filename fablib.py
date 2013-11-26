@@ -207,7 +207,7 @@ def install_requirements():
     require('settings', provided_by=SETTINGS_PROVIDERS)
 
     with load_full_shell(), prefix('workon %(project_name)s' % env):
-        run('pip install -r -q %(path)s/requirements.txt' % env)
+        run('pip install -q -r %(path)s/requirements.txt' % env)
 
 
 @parallel
