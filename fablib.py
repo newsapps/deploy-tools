@@ -343,7 +343,6 @@ def reload_celery():
         print(colors.red("You must set env.use_celery to True"))
 
 
-
 @roles('admin')
 def syncdb_destroy_database():
     """
@@ -637,13 +636,31 @@ def load_full_shell():
     return prefix('source /etc/bash_completion')
 
 
+@runs_once
 def check_names():
     """
     Check that everything is named in an acceptable fashion
     """
     import re
     if re.match(r'^[a-zA-Z][a-zA-Z_0-9]+$', env.project_name) is None:
-        raise SyntaxError('Project name contains invaild characters. It must be a valid python variable name.')
+        print(colors.red("Project name '%s' contains invaild characters. It should be a valid python variable name." % env.project_name))
+
+
+# Server management
+def list_apps():
+    run('ls -1 /etc/service/')
+
+
+def stop_app(name=None):
+    if name is None:
+        name = env.project_name
+    sudo('sv stop %s' % name)
+
+
+def start_app(name=None):
+    if name is None:
+        name = env.project_name
+    sudo('sv start %s' % name)
 
 
 try:
