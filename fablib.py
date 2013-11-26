@@ -96,6 +96,7 @@ def setup():
     This does the bare minimum to get an app up and running. Does not do
     anything database related.
     """
+    check_names()
     require('settings', provided_by=SETTINGS_PROVIDERS)
     if env.settings != "vagrant":
         require('branch', provided_by=BRANCH_PROVIDERS)
@@ -340,7 +341,6 @@ def reload_celery():
         sudo('sv hup %(project_name)s_worker' % env)
     else:
         print(colors.red("You must set env.use_celery to True"))
-
 
 
 @roles('admin')
@@ -627,22 +627,42 @@ def shiva_the_destroyer():
         run('rm -Rf %(path)s' % env)
 
 
+# Other utilities
 def load_full_shell():
-    # Sometimes all the environment stuff doesn't get loaded.
+    """
+    Loads the full environment, including 'workon', 'mkvirtualenv' and
+    'rmvirtualenv'.
+    """
     return prefix('source /etc/bash_completion')
 
 
-def workon_project():
-    # all the contexts you need to work in the project
-    # TODO: test!
-    return nested(
-        cd(env.path),
-        load_full_shell(),
-        prefix('workon %(project_name)s' % env),
-        prefix('DJANGO_SETTINGS_MODULE=%(django_settings_module)s' % env))
+@runs_once
+def check_names():
+    """
+    Check that everything is named in an acceptable fashion
+    """
+    import re
+    if re.match(r'^[a-zA-Z][a-zA-Z_0-9]+$', env.project_name) is None:
+        print(colors.red("Project name '%s' contains invaild characters. It should be a valid python variable name." % env.project_name))
 
 
-# Other utilities
+# Server management
+def list_apps():
+    run('ls -1 /etc/service/')
+
+
+def stop_app(name=None):
+    if name is None:
+        name = env.project_name
+    sudo('sv stop %s' % name)
+
+
+def start_app(name=None):
+    if name is None:
+        name = env.project_name
+    sudo('sv start %s' % name)
+
+
 try:
     import boto
     from boto.s3.connection import S3Connection

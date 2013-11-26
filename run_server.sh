@@ -20,9 +20,17 @@ SOCKET=/tmp/$PROJECT.sock
 ERROR_LOG=/home/newsapps/logs/$PROJECT.error.log
 SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
 
+export DEPLOYMENT_TARGET=$TARGET
+
 if [ -f $ROOT/application.py ]
 then
-  export CONFIG_MODULE=${TARGET}_config
+  if [ -f $ROOT/$PROJECT/${TARGET}_config.py ]
+  then
+    export CONFIG_MODULE=${PROJECT}.${TARGET}_config
+  elif [ -f $ROOT/${TARGET}_config.py ]
+  then
+    export CONFIG_MODULE=${TARGET}_config
+  fi
   WSGI_MODULE=application
 else
   if [ -d $ROOT/$PROJECT/configs ]
