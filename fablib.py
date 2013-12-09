@@ -379,6 +379,17 @@ def create_database():
             '--password=%(db_root_pass)s %(project_name)s' % env)
 
 
+def local_create_database():
+    if env.db_type == 'postgresql':
+        local('echo "CREATE USER %(project_name)s WITH PASSWORD \'%(database_password)s\' CREATEUSER;" | psql postgres' % env)
+        local('createdb -O %(project_name)s %(project_name)s -T template_postgis' % env)
+    else:
+        local('mysqladmin create %(project_name)s' % env)
+        local('echo "GRANT ALL ON * TO \'%(project_name)s\'@\'%%\' '
+            'IDENTIFIED BY \'%(database_password)s\';" | '
+            'mysql %(project_name)s' % env)
+
+
 @roles('admin')
 def destroy_database():
     """
@@ -407,6 +418,16 @@ def destroy_database():
                     'mysql --host=%(db_host)s '
                     '--user=%(db_root_user)s '
                     '--password=%(db_root_pass)s' % env)
+
+
+def local_destroy_database():
+    if confirm("Are you sure you want to drop the database?"):
+        if env.db_type == 'postgresql':
+            local('dropdb %(project_name)s' % env)
+            local('dropuser %(project_name)s' % env)
+        else:
+            local('mysqladmin -f drop %(project_name)s' % env)
+            local('echo "DROP USER \'%(project_name)s\'@\'%%\';"| mysql' % env)
 
 
 @roles('admin')
