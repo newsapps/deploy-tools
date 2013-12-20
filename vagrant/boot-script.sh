@@ -108,27 +108,9 @@ rsync -r $ASSET_DIR/overlay/ /
 echo "Installing scripts from tools/vagrant/assets/bin"
 cp $ASSET_DIR/bin/* /usr/local/bin
 
-# load private keys
-echo "Installing keys from tools/vagrant/assets/*.pem"
-cp $ASSET_DIR/*.pem /home/$USERNAME/.ssh/
-
-# load authorized keys
-if [ -f $ASSET_DIR/authorized_keys ]; then
-  echo "Using authorized_keys from tools/vagrant/assets"
-  cat $ASSET_DIR/authorized_keys >> /home/$USERNAME/.ssh/authorized_keys
-fi
-
-# load known hosts
-if [ -f $ASSET_DIR/known_hosts ]; then
-  echo "Using known_hosts from tools/vagrant/assets"
-  cp $ASSET_DIR/known_hosts /home/$USERNAME/.ssh/known_hosts
-fi
-
-# load ssh config
-if [ -f $ASSET_DIR/ssh_config ]; then
-  echo "Using ssh config from tools/vagrant/assets"
-  cp $ASSET_DIR/ssh_config /home/$USERNAME/.ssh/config
-fi
+# Copy ssh config
+echo "Installing keys and ssh config from tools/vagrant/assets/ssh"
+cp $ASSET_DIR/ssh/* /home/$USERNAME/.ssh/
 
 # make sure our clocks are always on time
 echo 'ntpdate ntp.ubuntu.com' > /etc/cron.daily/ntpdate
@@ -141,6 +123,14 @@ chmod -Rf go-rwx /home/$USERNAME/.ssh
 mkdir /home/$USERNAME/logs
 mkdir /home/$USERNAME/sites
 mkdir /home/$USERNAME/nginx
+
+# Get secrets
+su - vagrant <<'EOF'
+git clone git@tribune.unfuddle.com:tribune/secrets.git /home/vagrant/secrets
+EOF
+
+# Source secrets
+echo "source /home/$USERNAME/secrets/dev_secrets.sh" >> /home/$USERNAME/.bashrc
 
 # Fix any perms that might have gotten messed up
 chown -Rf $USERNAME:$USERNAME /home/$USERNAME
