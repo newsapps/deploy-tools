@@ -52,7 +52,7 @@ install_pkg libmapnik mapnik-utils python-mapnik
 
 # install everything but the kitchen sink
 echo "Installing servers"
-install_pkg nginx memcached redis-server mysql-server postgresql-9.1-postgis
+install_pkg nginx memcached redis-server mysql-server postgresql-9.1-postgis postgresql-contrib
 
 sudo -u postgres psql -d postgres -c "ALTER USER postgres WITH PASSWORD 'postgres';" > /dev/null
 
@@ -66,6 +66,9 @@ POSTGIS_SQL_PATH=/usr/share/postgresql/9.1/contrib/postgis-1.5
 
 # Creating the template spatial database.
 sudo -u postgres createdb -E UTF8 template_postgis
+
+# hstore setup
+sudo -u postgres -c "create extension hstore;" > /dev/null
 
 # Adding PLPGSQL language support.
 #sudo -u postgres createlang -d template_postgis plpgsql
