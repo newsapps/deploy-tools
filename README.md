@@ -38,3 +38,5 @@ Not much. It's mainly a place to put fabric commands that are used in multiple p
 # Vagrant
 
 The included vagrant file will setup a fresh server with MySQL, Nginx, PostgreSQL, PostGIS, PGPool2, Memcached and Redis. It should be capable of running any Python Tribune News Application. That said, it's missing a few important things: keys for pulling private git repositories, and Amazon keys for pushing files to S3 or otherwise interacting with EC2. The Vagrant box might also have trouble running all the services at once, so you'll need to ssh in to stop any services you're not using.
+
+To use Vagrant with your project, copy `examples/Vagrantfile` into your project directory and customize it. Copy the contents of your `~/.ssh/` directory into `vagrant/assets/ssh`. Then run `vagrant up` in you project directory.
