@@ -9,12 +9,17 @@ from fabric.contrib.files import exists
 from fabric.context_managers import cd
 from fabric.decorators import parallel, runs_once
 from fabric import colors
+from contextlib import nested
 
 env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
 env.use_gunicorn = True
 env.use_nginx = True
+env.use_django_static = True
 env.gunicorn_workers = 2
 env.celery_workers = 2
+
+SETTINGS_PROVIDERS = ["production", "staging", "vagrant", "aws"]
+BRANCH_PROVIDERS = ["stable", "master", "branch"]
 
 
 # Local Vagrant target
@@ -78,6 +83,11 @@ def branch(branch_name):
     env.branch = branch_name
 
 
+def rollback():
+    print(colors.red('Rolling back last deploy'))
+    env.branch = 'rollback'
+
+
 # Commands - git
 @parallel
 def setup():
@@ -86,9 +96,10 @@ def setup():
     This does the bare minimum to get an app up and running. Does not do
     anything database related.
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    check_names()
+    require('settings', provided_by=SETTINGS_PROVIDERS)
     if env.settings != "vagrant":
-        require('branch', provided_by=[master, stable, branch])
+        require('branch', provided_by=BRANCH_PROVIDERS)
 
     with load_full_shell():
         # setup virtualenv
@@ -181,7 +192,7 @@ def install_nginx_conf():
     """
     Setup the nginx config file
     """
-    require('settings', provided_by=["production", "staging", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
     with settings(hide('warnings'), warn_only=True):
         sudo('rm ~/nginx/%(project_name)s' % env)
     sudo('ln -s %(path)s/http/%(settings)s-nginx.conf ~/nginx/%(project_name)s' % env)
@@ -191,9 +202,9 @@ def install_nginx_conf():
 @parallel
 def install_requirements():
     """
-    Install the required packages using pip.
+    Install the required packages with pip.
     """
-    require('settings', provided_by=["production", "staging", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     with load_full_shell(), prefix('workon %(project_name)s' % env):
         run('pip install -q -r %(path)s/requirements.txt' % env)
@@ -204,7 +215,7 @@ def rebuild_requirements():
     """
     Remove the virtualenv and rebuild it from scratch
     """
-    require('settings', provided_by=["production", "staging", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     with load_full_shell():
         run('rmvirtualenv %(project_name)s' % env)
@@ -218,30 +229,43 @@ def mk_cache_dir():
     """
     Creates the directory that nginx uses for caching
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
     sudo('mkdir /mnt/nginx-cache')
     sudo('chmod ugo+rwx /mnt/nginx-cache')
 
 
 # Commands - Deployment
-@parallel
+@runs_once
 def deploy():
+    execute(sync)
+    execute(collectstatic)
+    execute(install_requirements)
+    execute(reload)
+
+
+@parallel
+def sync():
     """
     Deploy the latest version of the site to the server. Only does git stuff,
     no application or database stuff.
     """
-    require('settings', provided_by=["production", "staging", "aws"])
-    require('branch', provided_by=[master, stable, branch])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
+    require('branch', provided_by=BRANCH_PROVIDERS)
 
     with cd(env.path):
-        # fetch new stuff from the server
-        run('git fetch')
+        if env.branch != 'rollback':
+            # mark our currently deployed revision so we can roll back
+            run('git tag -f rollback')
+
+            # fetch new stuff from the server
+            run('git fetch')
 
         # make sure we're on the correct branch
         run('git checkout %(branch)s' % env)
 
-        # pull updates
-        run('git pull')
+        if env.branch != 'rollback':
+            # pull updates
+            run('git pull')
 
         # pull down all the submodules
         run('git submodule update --init --recursive')
@@ -252,8 +276,7 @@ def reboot():
     """
     Reload the server.
     """
-    require('settings',
-            provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
     if confirm("This will force services to restart and could cause errors for"
                " users. You should probably use 'reload' instead. Do you wish"
                " to continue?", default=False):
@@ -290,8 +313,7 @@ def reload():
     """
     Gracefully reload code and configuration on the server.
     """
-    require('settings',
-            provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
     execute(reload_gunicorn)
     if env.use_celery:
         execute(reload_celery)
@@ -321,14 +343,12 @@ def reload_celery():
         print(colors.red("You must set env.use_celery to True"))
 
 
-
 @roles('admin')
 def syncdb_destroy_database():
     """
     Run syncdb after destroying the database
     """
-    require('settings',
-            provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     destroy_database()
     create_database()
@@ -342,8 +362,7 @@ def create_database():
     """
     Creates the user and database for this project.
     """
-    require('settings',
-            provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     if 'db_root_pass' not in env:
         env.db_root_pass = getpass("Database password: ")
@@ -360,12 +379,23 @@ def create_database():
             '--password=%(db_root_pass)s %(project_name)s' % env)
 
 
+def local_create_database():
+    if env.db_type == 'postgresql':
+        local('echo "CREATE USER %(project_name)s WITH PASSWORD \'%(database_password)s\' CREATEUSER;" | psql postgres' % env)
+        local('createdb -O %(project_name)s %(project_name)s -T template_postgis' % env)
+    else:
+        local('mysqladmin create %(project_name)s' % env)
+        local('echo "GRANT ALL ON * TO \'%(project_name)s\'@\'%%\' '
+            'IDENTIFIED BY \'%(database_password)s\';" | '
+            'mysql %(project_name)s' % env)
+
+
 @roles('admin')
 def destroy_database():
     """
     Destroys the user and database for this project.
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     if not env.db_root_pass:
         env.db_root_pass = getpass("Database password: ")
@@ -390,13 +420,23 @@ def destroy_database():
                     '--password=%(db_root_pass)s' % env)
 
 
+def local_destroy_database():
+    if confirm("Are you sure you want to drop the database?"):
+        if env.db_type == 'postgresql':
+            local('dropdb %(project_name)s' % env)
+            local('dropuser %(project_name)s' % env)
+        else:
+            local('mysqladmin -f drop %(project_name)s' % env)
+            local('echo "DROP USER \'%(project_name)s\'@\'%%\';"| mysql' % env)
+
+
 @roles('admin')
 def load_data(dump_slug='dump'):
     """
     Loads a sql dump file into the database. Takes an optional parameter
     to use in the sql dump file name.
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     env.dump_slug = dump_slug
 
@@ -421,7 +461,7 @@ def dump_db(dump_slug='dump'):
     It can end up making the repository HUGE and the files can never
     be removed from the repo history.
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     env.dump_slug = dump_slug
 
@@ -443,7 +483,7 @@ def put_dump(dump_file='dump.sql.bz2'):
     Upload a dump file to the chosen deployment target. Takes an optional
     parameter to use for the file name.
     """
-    require('settings', provided_by=["production", "staging", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     env.dump_file = dump_file
     put('data/%(dump_file)s' % env,
@@ -457,7 +497,7 @@ def get_dump(dump_file='dump.sql.bz2'):
     Download a dump file from the chosen deployment target. Takes an optional
     parameter to use for the file name.
     """
-    require('settings', provided_by=["production", "staging", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     env.dump_file = dump_file
     get('%(repo_path)s/data/%(dump_file)s' % env,
@@ -467,7 +507,7 @@ def get_dump(dump_file='dump.sql.bz2'):
 
 @roles('admin')
 def do_migration(migration_script):
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     env.migration_script = migration_script
 
@@ -485,7 +525,7 @@ def do_migration(migration_script):
 # Management commands
 @roles('admin')
 def manage(command):
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
     with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
         run('DJANGO_SETTINGS_MODULE=%s ./manage.py %s' % (env.django_settings_module, command))
 
@@ -493,11 +533,13 @@ def manage(command):
 @parallel
 @roles('app')
 def collectstatic():
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
     with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
-        with settings(warn_only=True):
-            run('mkdir static')
-        run('DJANGO_SETTINGS_MODULE=%s ./manage.py collectstatic -c --noinput' % env.django_settings_module)
+        run('git rev-parse HEAD |cut -c 1-6 > CACHEBUSTER')
+        if env.use_django_static and hasattr(env, 'django_settings_module'):
+            with settings(warn_only=True):
+                run('mkdir static')
+            run('DJANGO_SETTINGS_MODULE=%s ./manage.py collectstatic -c --noinput' % env.django_settings_module)
 
 
 # Commands - Cache
@@ -507,7 +549,7 @@ def clear_url(url):
     Takes a partial url ('/story/junk-n-stuff'), and purges it from the
     Varnish cache.
     """
-    require('settings', provided_by=["production", "staging", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         for server in env.cache_servers:
@@ -520,7 +562,7 @@ def clear_cache():
     """
     Connects to varnish and purges the cache for the entire site. Be careful.
     """
-    require('settings', provided_by=["production", "staging", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         for server in env.cache_servers:
@@ -533,7 +575,7 @@ def clear_nginx_cache():
     """
     Connects to all the app servers and deletes the cache for this site
     """
-    require('settings', provided_by=["production", "staging", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         sudo('rm -Rf /mnt/nginx-cache/%(project_name)s/*' % env)
@@ -544,7 +586,7 @@ def run_cron():
     """
     Connects to admin server and runs the cron script.
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     run("%(path)s/cron_%(settings)s.sh" % env)
 
@@ -555,7 +597,7 @@ def weblogs():
     """
     Connect to all the servers and tail the logfiles
     """
-    require('settings', provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     try:
         run("tail -f ~/logs/%(project_name)s.error.log" % env)
@@ -569,8 +611,7 @@ def workerlogs():
     """
     Connect to all the servers and tail the logfiles
     """
-    require('settings',
-            provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     try:
         run("tail -f ~/logs/%(project_name)s-worker.error.log" % env)
@@ -585,8 +626,7 @@ def shiva_the_destroyer():
     Remove all traces of the application from the servers. Does not
     touch databases.
     """
-    require('settings',
-            provided_by=["production", "staging", "vagrant", "aws"])
+    require('settings', provided_by=SETTINGS_PROVIDERS)
 
     with settings(warn_only=True):
         # remove nginx config
@@ -608,12 +648,42 @@ def shiva_the_destroyer():
         run('rm -Rf %(path)s' % env)
 
 
+# Other utilities
 def load_full_shell():
-    # Sometimes all the environment stuff doesn't get loaded.
+    """
+    Loads the full environment, including 'workon', 'mkvirtualenv' and
+    'rmvirtualenv'.
+    """
     return prefix('source /etc/bash_completion')
 
 
-# Other utilities
+@runs_once
+def check_names():
+    """
+    Check that everything is named in an acceptable fashion
+    """
+    import re
+    if re.match(r'^[a-zA-Z][a-zA-Z_0-9]+$', env.project_name) is None:
+        print(colors.red("Project name '%s' contains invaild characters. It should be a valid python variable name." % env.project_name))
+
+
+# Server management
+def list_apps():
+    run('ls -1 /etc/service/')
+
+
+def stop_app(name=None):
+    if name is None:
+        name = env.project_name
+    sudo('sv stop %s' % name)
+
+
+def start_app(name=None):
+    if name is None:
+        name = env.project_name
+    sudo('sv start %s' % name)
+
+
 try:
     import boto
     from boto.s3.connection import S3Connection
@@ -756,4 +826,5 @@ try:
                 else:
                     yield (os.path.join(rel_path, f), os.path.join(root, f))
 except ImportError:
-    pass
+    def aws(cluster):
+        print(colors.red("You must install boto!"))
