@@ -124,14 +124,6 @@ mkdir /home/$USERNAME/logs
 mkdir /home/$USERNAME/sites
 mkdir /home/$USERNAME/nginx
 
-# Get secrets
-su - vagrant <<'EOF'
-git clone git@tribune.unfuddle.com:tribune/secrets.git /home/vagrant/secrets
-EOF
-
-# Source secrets
-echo "source /home/$USERNAME/secrets/dev_secrets.sh" >> /home/$USERNAME/.bashrc
-
 # Fix any perms that might have gotten messed up
 chown -Rf $USERNAME:$USERNAME /home/$USERNAME
 
