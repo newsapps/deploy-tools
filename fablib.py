@@ -40,7 +40,7 @@ def vagrant():
 
     env.user = 'vagrant'
 
-    env.path = '/home/%(user)s/sites/%(project_name)s' % env
+    env.path = '/vagrant'
     env.env_path = '/home/%(user)s/.virtualenvs/%(project_name)s' % env
     env.repo_path = env.path
 
