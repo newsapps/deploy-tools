@@ -1,10 +1,5 @@
 #!/bin/bash
 
-if [ -f /var/opt/newsapps-setup-complete ]; then
-  echo 'Box is already configured'
-  exit
-fi
-
 USERNAME=vagrant
 
 # Some useful bash functions
@@ -139,8 +134,5 @@ service memcached restart
 service redis-server restart
 service postgresql restart
 service mysql restart
-
-# Create a flag that tells this script to not run again
-touch /var/opt/newsapps-setup-complete
 
 echo 'All setup!'
