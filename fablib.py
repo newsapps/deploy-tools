@@ -598,6 +598,8 @@ def clear_nginx_cache():
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         sudo('rm -Rf /mnt/nginx-cache/%(project_name)s/*' % env)
+        for site in env.django_sites:
+            sudo('rm -Rf /mnt/nginx-cache/%s_%s/*' % (env.project_name, site))
 
 
 @roles('admin')
