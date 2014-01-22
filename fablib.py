@@ -150,7 +150,7 @@ def install_gunicorn():
 
     # setup the runit service directories
     sudo('mkdir /etc/service/%(project_name)s' % env)
-    for slug, module in env.django_sites_settings_modules.iteritems():
+    for slug in env.django_sites:
         sudo('mkdir /etc/service/%s_%s' % (env.project_name, slug))
 
     if exists('%(path)s/run_%(settings)s_server.sh' % env):
@@ -174,7 +174,7 @@ def install_gunicorn():
         sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('chgrp www-data /home/newsapps/logs/%(project_name)s.error.log' % env)
         # start the new servers
-        for slug, module in env.django_sites_settings_modules.iteritems():
+        for slug in env.django_sites:
             sudo('sv start %s_%s' % (env.project_name, slug))
 
 
@@ -257,8 +257,8 @@ def mk_cache_dir():
 @runs_once
 def deploy():
     execute(sync)
-    execute(collectstatic)
     execute(install_requirements)
+    execute(collectstatic)
     execute(reload)
 
 

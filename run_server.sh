@@ -44,6 +44,7 @@ else
     export PYTHONPATH=$ROOT/$PROJECT:$ROOT
     WSGI_MODULE=$PROJECT.configs.$TARGET.wsgi
   elif [ -d $ROOT/$PROJECT/settings ]
+  then
     if [ -z "$SITE" ]
     then
       export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${TARGET}
