@@ -4,7 +4,7 @@ E_BADARGS=65
 
 if [ $# -lt $EXPECTED_ARGS ]
 then
-  echo "Usage: `basename $0` <deploy target> <projectname> [num workers]"
+  echo "Usage: `basename $0` <deploy target> <projectname> [num workers] [site]"
   echo "Run a gunicorn server for the app in /home/newsapps/sites/projectname."
   exit $E_BADARGS
 fi
@@ -12,11 +12,17 @@ fi
 TARGET=$1
 PROJECT=$2
 WORKERS=${3:-'2'}
+SITE=${4:-''}
 
 USE_ACCOUNT=www-data
 ROOT=/home/newsapps/sites/$PROJECT
 GUNICORN=/home/newsapps/.virtualenvs/$PROJECT/bin/gunicorn
-SOCKET=/tmp/$PROJECT.sock
+if [ -z "$SITE" ]
+then
+  SOCKET=/tmp/$PROJECT.sock
+else
+  SOCKET=/tmp/$PROJECT_$SITE.sock
+fi
 ERROR_LOG=/home/newsapps/logs/$PROJECT.error.log
 SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
 
@@ -35,9 +41,16 @@ then
 else
   if [ -d $ROOT/$PROJECT/configs ]
   then
-    export DJANGO_SETTINGS_MODULE=$PROJECT.configs.$TARGET.settings
     export PYTHONPATH=$ROOT/$PROJECT:$ROOT
     WSGI_MODULE=$PROJECT.configs.$TARGET.wsgi
+  elif [ -d $ROOT/$PROJECT/settings ]
+    if [ -z "$SITE" ]
+    then
+      export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${TARGET}
+    else
+      export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${SITE}_${TARGET}
+    fi
+    WSGI_MODULE=$PROJECT.wsgi
   else
     export DJANGO_SETTINGS_MODULE=$PROJECT.${TARGET}_settings
     WSGI_MODULE=$PROJECT.wsgi

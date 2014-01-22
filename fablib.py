@@ -15,6 +15,7 @@ env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
 env.use_gunicorn = True
 env.use_nginx = True
 env.use_django_static = True
+env.django_sites = []
 env.gunicorn_workers = 2
 env.celery_workers = 2
 
@@ -140,23 +141,41 @@ def install_gunicorn():
     Link up and install the runit script for gunicorn
     """
     with settings(hide('warnings'), warn_only=True):
+        # Stop all the gunicorn runit services and delete them
         sudo('sv stop %(project_name)s' % env)
         sudo('rm -Rf /etc/service/%(project_name)s' % env)
+        for slug in env.django_sites:
+            sudo('sv stop %s_%s' % (env.project_name, slug))
+            sudo('rm -Rf /etc/service/%s_%s' % (env.project_name, slug))
 
+    # setup the runit service directories
     sudo('mkdir /etc/service/%(project_name)s' % env)
+    for slug, module in env.django_sites_settings_modules.iteritems():
+        sudo('mkdir /etc/service/%s_%s' % (env.project_name, slug))
+
     if exists('%(path)s/run_%(settings)s_server.sh' % env):
+        # install a custom run_[staging|production]_server.sh script
         sudo('ln -s %(path)s/run_%(settings)s_server.sh '
              '/etc/service/%(project_name)s/run' % env)
     elif exists('%(path)s/tools/run_server.sh' % env):
+        # install the generic tools run_server.sh script
         sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s" > '
              '/etc/service/%(project_name)s/run' % env)
         sudo('chmod +x /etc/service/%(project_name)s/run' % env)
+        for slug in env.django_sites:
+            with settings(site=slug):
+                sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s %(site)s" > '
+                     '/etc/service/%(project_name)s_%(site)s/run' % env)
+                sudo('chmod +x /etc/service/%(project_name)s_%(site)s/run' % env)
 
     with settings(hide('warnings'), warn_only=True):
+        # make sure the log files are setup properly
         sudo('touch /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('chgrp www-data /home/newsapps/logs/%(project_name)s.error.log' % env)
-        sudo('sv start %(project_name)s' % env)
+        # start the new servers
+        for slug, module in env.django_sites_settings_modules.iteritems():
+            sudo('sv start %s_%s' % (env.project_name, slug))
 
 
 @parallel
@@ -354,7 +373,7 @@ def syncdb_destroy_database():
     create_database()
 
     with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
-            run('DJANGO_SETTINGS_MODULE=%(django_settings_module)s ./manage.py syncdb --noinput' % env)
+        run('DJANGO_SETTINGS_MODULE=%(django_settings_module)s ./manage.py syncdb --noinput' % env)
 
 
 @roles('admin')
