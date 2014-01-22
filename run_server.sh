@@ -19,11 +19,11 @@ ROOT=/home/newsapps/sites/$PROJECT
 GUNICORN=/home/newsapps/.virtualenvs/$PROJECT/bin/gunicorn
 if [ -z "$SITE" ]
 then
-  SOCKET=/tmp/$PROJECT.sock
+  SOCKET=/tmp/${PROJECT}.sock
 else
-  SOCKET=/tmp/$PROJECT_$SITE.sock
+  SOCKET=/tmp/${PROJECT}_${SITE}.sock
 fi
-ERROR_LOG=/home/newsapps/logs/$PROJECT.error.log
+ERROR_LOG=/home/newsapps/logs/${PROJECT}.error.log
 SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
 
 export DEPLOYMENT_TARGET=$TARGET
