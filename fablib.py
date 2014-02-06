@@ -391,8 +391,8 @@ def create_database():
         env.db_root_pass = getpass("Database password: ")
 
     if env.db_type == 'postgresql':
-        run('echo "CREATE USER %(project_name)s WITH PASSWORD \'%(database_password)s\' CREATEUSER;" | PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s postgres' % env)
-        run('PGPASSWORD=%(db_root_pass)s createdb --host=%(db_host)s --username=%(db_root_user)s -O %(project_name)s %(project_name)s -T template_postgis' % env)
+        run('echo "CREATE ROLE %(project_name)s WITH PASSWORD \'%(database_password)s\' LOGIN CREATEDB;" | PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s postgres' % env)
+        run('PGPASSWORD=%(database_password)s createdb --host=%(db_host)s --username=%(project_name)s -O %(project_name)s %(project_name)s' % env)
     else:
         run('mysqladmin --host=%(db_host)s --user=%(db_root_user)s '
             '--password=%(db_root_pass)s create %(project_name)s' % env)
