@@ -258,8 +258,8 @@ def mk_cache_dir():
 def deploy():
     execute(sync)
     execute(install_requirements)
-    execute(collectstatic)
     execute(reload)
+    execute(collectstatic)
 
 
 @parallel
