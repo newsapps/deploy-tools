@@ -408,9 +408,7 @@ def local_create_database():
         local('createdb -O %(project_name)s %(project_name)s -T template_postgis' % env)
     else:
         local('mysqladmin create %(project_name)s' % env)
-        local('echo "GRANT ALL ON * TO \'%(project_name)s\'@\'%%\' '
-            'IDENTIFIED BY \'%(database_password)s\';" | '
-            'mysql %(project_name)s' % env)
+        local('echo "GRANT ALL ON * TO \'%(project_name)s\'@\'localhost\' IDENTIFIED BY \'%(database_password)s\';" | mysql %(project_name)s' % env)
 
 
 @roles('admin')
@@ -450,7 +448,7 @@ def local_destroy_database():
             local('dropuser %(project_name)s' % env)
         else:
             local('mysqladmin -f drop %(project_name)s' % env)
-            local('echo "DROP USER \'%(project_name)s\'@\'%%\';"| mysql' % env)
+            local('echo "DROP USER \'%(project_name)s\'@\'localhost\';"| mysql' % env)
 
 
 @roles('admin')
@@ -470,6 +468,20 @@ def load_data(dump_slug='dump'):
         run("bzcat %(repo_path)s/data/%(dump_slug)s.sql.bz2 |PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s %(project_name)s" % env)
     else:
         run("bzcat %(repo_path)s/data/%(dump_slug)s.sql.bz2 "
+            "|mysql --host=%(db_host)s --user=%(db_root_user)s "
+            "--password=%(db_root_pass)s %(project_name)s" % env)
+
+
+def local_load_data(dump_slug='dump'):
+    env.dump_slug = dump_slug
+
+    if not env.db_root_pass:
+        env.db_root_pass = getpass("Database password: ")
+
+    if env.db_type == 'postgresql':
+        local("bzcat data/%(dump_slug)s.sql.bz2 |PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s %(project_name)s" % env)
+    else:
+        local("bzcat data/%(dump_slug)s.sql.bz2 "
             "|mysql --host=%(db_host)s --user=%(db_root_user)s "
             "--password=%(db_root_pass)s %(project_name)s" % env)
 
@@ -498,6 +510,17 @@ def dump_db(dump_slug='dump'):
             "--password=%(db_root_pass)s --quick --skip-lock-tables "
             "%(project_name)s |bzip2 > "
             "%(repo_path)s/data/%(dump_slug)s.sql.bz2" % env)
+
+
+def local_dump_db(dump_slug='dump'):
+    env.dump_slug = dump_slug
+    if env.db_type == 'postgresql':
+        local("PGPASSWORD=%(db_root_pass)s pg_dump --host=%(db_host)s --username=%(db_root_user)s %(project_name)s |bzip2 > data/%(dump_slug)s.sql.bz2" % env)
+    else:
+        local("mysqldump --host=%(db_host)s --user=%(db_root_user)s "
+            "--password=%(db_root_pass)s --quick --skip-lock-tables "
+            "%(project_name)s |bzip2 > "
+            "data/%(dump_slug)s.sql.bz2" % env)
 
 
 @roles('admin')
@@ -543,6 +566,15 @@ def do_migration(migration_script):
         run("cat %(repo_path)s/migrations/%(migration_script)s.mysql "
             "|mysql --host=%(db_host)s --user=%(db_root_user)s "
             "--password=%(db_root_pass)s %(project_name)s" % env)
+
+
+def local_migration(migration_script):
+    env.migration_script = migration_script
+
+    if env.db_type == 'postgresql':
+        local("cat migrations/%(migration_script)s.psql |psql %(project_name)s" % env)
+    else:
+        local("cat migrations/%(migration_script)s.mysql |mysql %(project_name)s" % env)
 
 
 # Management commands
