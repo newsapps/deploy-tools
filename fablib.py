@@ -428,7 +428,7 @@ def destroy_database():
                    "the %s database?" % env.settings):
             if env.db_type == 'postgresql':
                 sudo('sv stop %(project_name)s' % env)
-                run('PGPASSWORD=%(db_root_pass)s dropdb --host=%(db_host)s --username=%(db_root_user)s %(project_name)s' % env)
+                run('PGPASSWORD=%(database_password)s dropdb --host=%(db_host)s --username=%(project_name)s %(project_name)s' % env)
                 run('PGPASSWORD=%(db_root_pass)s dropuser --host=%(db_host)s --username=%(db_root_user)s %(project_name)s' % env)
                 sudo('sv start %(project_name)s' % env)
             else:
