@@ -29,6 +29,9 @@ else
     export DJANGO_SETTINGS_MODULE=$PROJECT.configs.$TARGET.settings
     export PYTHONPATH=$ROOT/$PROJECT:$ROOT
     CELERY="$ROOT/manage.py celery worker"
+  elif [ -d $ROOT/$PROJECT/settings ]
+  then
+    export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${TARGET}
   else
     export DJANGO_SETTINGS_MODULE=$PROJECT.${TARGET}_settings
     CELERY="$ROOT/manage.py celery worker"

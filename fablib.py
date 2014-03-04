@@ -15,6 +15,7 @@ env.use_ssh_config = True  # Use SSH config (~/.ssh/config)
 env.use_gunicorn = True
 env.use_nginx = True
 env.use_django_static = True
+env.django_sites = []
 env.gunicorn_workers = 2
 env.celery_workers = 2
 
@@ -140,23 +141,41 @@ def install_gunicorn():
     Link up and install the runit script for gunicorn
     """
     with settings(hide('warnings'), warn_only=True):
+        # Stop all the gunicorn runit services and delete them
         sudo('sv stop %(project_name)s' % env)
         sudo('rm -Rf /etc/service/%(project_name)s' % env)
+        for slug in env.django_sites:
+            sudo('sv stop %s_%s' % (env.project_name, slug))
+            sudo('rm -Rf /etc/service/%s_%s' % (env.project_name, slug))
 
+    # setup the runit service directories
     sudo('mkdir /etc/service/%(project_name)s' % env)
+    for slug in env.django_sites:
+        sudo('mkdir /etc/service/%s_%s' % (env.project_name, slug))
+
     if exists('%(path)s/run_%(settings)s_server.sh' % env):
+        # install a custom run_[staging|production]_server.sh script
         sudo('ln -s %(path)s/run_%(settings)s_server.sh '
              '/etc/service/%(project_name)s/run' % env)
     elif exists('%(path)s/tools/run_server.sh' % env):
+        # install the generic tools run_server.sh script
         sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s" > '
              '/etc/service/%(project_name)s/run' % env)
         sudo('chmod +x /etc/service/%(project_name)s/run' % env)
+        for slug in env.django_sites:
+            with settings(site=slug):
+                sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s %(site)s" > '
+                     '/etc/service/%(project_name)s_%(site)s/run' % env)
+                sudo('chmod +x /etc/service/%(project_name)s_%(site)s/run' % env)
 
     with settings(hide('warnings'), warn_only=True):
+        # make sure the log files are setup properly
         sudo('touch /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('chgrp www-data /home/newsapps/logs/%(project_name)s.error.log' % env)
-        sudo('sv start %(project_name)s' % env)
+        # start the new servers
+        for slug in env.django_sites:
+            sudo('sv start %s_%s' % (env.project_name, slug))
 
 
 @parallel
@@ -238,9 +257,9 @@ def mk_cache_dir():
 @runs_once
 def deploy():
     execute(sync)
-    execute(collectstatic)
     execute(install_requirements)
     execute(reload)
+    execute(collectstatic)
 
 
 @parallel
@@ -291,6 +310,8 @@ def reboot_gunicorn():
     print(colors.red(
         "FORCING RESTART OF GUNICORN - You should use reload_gunicorn"))
     sudo('sv restart %(project_name)s' % env)
+    for site in env.django_sites:
+        sudo('sv restart %s_%s' % (env.project_name, site))
     sudo('service nginx reload')
 
 
@@ -327,6 +348,8 @@ def reload_gunicorn():
     """
     print(colors.green("Gracefully reloading gunicorn"))
     sudo('sv hup %(project_name)s' % env)
+    for site in env.django_sites:
+        sudo('sv hup %s_%s' % (env.project_name, site))
     sudo('service nginx reload')
 
 
@@ -354,7 +377,7 @@ def syncdb_destroy_database():
     create_database()
 
     with cd(env.path), load_full_shell(), prefix('workon %(project_name)s' % env):
-            run('DJANGO_SETTINGS_MODULE=%(django_settings_module)s ./manage.py syncdb --noinput' % env)
+        run('DJANGO_SETTINGS_MODULE=%(django_settings_module)s ./manage.py syncdb --noinput' % env)
 
 
 @roles('admin')
@@ -368,8 +391,8 @@ def create_database():
         env.db_root_pass = getpass("Database password: ")
 
     if env.db_type == 'postgresql':
-        run('echo "CREATE USER %(project_name)s WITH PASSWORD \'%(database_password)s\' CREATEUSER;" | PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s postgres' % env)
-        run('PGPASSWORD=%(db_root_pass)s createdb --host=%(db_host)s --username=%(db_root_user)s -O %(project_name)s %(project_name)s -T template_postgis' % env)
+        run('echo "CREATE ROLE %(project_name)s WITH PASSWORD \'%(database_password)s\' LOGIN CREATEDB;" | PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s postgres' % env)
+        run('PGPASSWORD=%(database_password)s createdb --host=%(db_host)s --username=%(project_name)s -O %(project_name)s %(project_name)s' % env)
     else:
         run('mysqladmin --host=%(db_host)s --user=%(db_root_user)s '
             '--password=%(db_root_pass)s create %(project_name)s' % env)
@@ -385,9 +408,7 @@ def local_create_database():
         local('createdb -O %(project_name)s %(project_name)s -T template_postgis' % env)
     else:
         local('mysqladmin create %(project_name)s' % env)
-        local('echo "GRANT ALL ON * TO \'%(project_name)s\'@\'%%\' '
-            'IDENTIFIED BY \'%(database_password)s\';" | '
-            'mysql %(project_name)s' % env)
+        local('echo "GRANT ALL ON * TO \'%(project_name)s\'@\'localhost\' IDENTIFIED BY \'%(database_password)s\';" | mysql %(project_name)s' % env)
 
 
 @roles('admin')
@@ -405,7 +426,7 @@ def destroy_database():
                    "the %s database?" % env.settings):
             if env.db_type == 'postgresql':
                 sudo('sv stop %(project_name)s' % env)
-                run('PGPASSWORD=%(db_root_pass)s dropdb --host=%(db_host)s --username=%(db_root_user)s %(project_name)s' % env)
+                run('PGPASSWORD=%(database_password)s dropdb --host=%(db_host)s --username=%(project_name)s %(project_name)s' % env)
                 run('PGPASSWORD=%(db_root_pass)s dropuser --host=%(db_host)s --username=%(db_root_user)s %(project_name)s' % env)
                 sudo('sv start %(project_name)s' % env)
             else:
@@ -427,7 +448,7 @@ def local_destroy_database():
             local('dropuser %(project_name)s' % env)
         else:
             local('mysqladmin -f drop %(project_name)s' % env)
-            local('echo "DROP USER \'%(project_name)s\'@\'%%\';"| mysql' % env)
+            local('echo "DROP USER \'%(project_name)s\'@\'localhost\';"| mysql' % env)
 
 
 @roles('admin')
@@ -447,6 +468,20 @@ def load_data(dump_slug='dump'):
         run("bzcat %(repo_path)s/data/%(dump_slug)s.sql.bz2 |PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s %(project_name)s" % env)
     else:
         run("bzcat %(repo_path)s/data/%(dump_slug)s.sql.bz2 "
+            "|mysql --host=%(db_host)s --user=%(db_root_user)s "
+            "--password=%(db_root_pass)s %(project_name)s" % env)
+
+
+def local_load_data(dump_slug='dump'):
+    env.dump_slug = dump_slug
+
+    if not env.db_root_pass:
+        env.db_root_pass = getpass("Database password: ")
+
+    if env.db_type == 'postgresql':
+        local("bzcat data/%(dump_slug)s.sql.bz2 |PGPASSWORD=%(db_root_pass)s psql --host=%(db_host)s --username=%(db_root_user)s %(project_name)s" % env)
+    else:
+        local("bzcat data/%(dump_slug)s.sql.bz2 "
             "|mysql --host=%(db_host)s --user=%(db_root_user)s "
             "--password=%(db_root_pass)s %(project_name)s" % env)
 
@@ -475,6 +510,17 @@ def dump_db(dump_slug='dump'):
             "--password=%(db_root_pass)s --quick --skip-lock-tables "
             "%(project_name)s |bzip2 > "
             "%(repo_path)s/data/%(dump_slug)s.sql.bz2" % env)
+
+
+def local_dump_db(dump_slug='dump'):
+    env.dump_slug = dump_slug
+    if env.db_type == 'postgresql':
+        local("PGPASSWORD=%(db_root_pass)s pg_dump --host=%(db_host)s --username=%(db_root_user)s %(project_name)s |bzip2 > data/%(dump_slug)s.sql.bz2" % env)
+    else:
+        local("mysqldump --host=%(db_host)s --user=%(db_root_user)s "
+            "--password=%(db_root_pass)s --quick --skip-lock-tables "
+            "%(project_name)s |bzip2 > "
+            "data/%(dump_slug)s.sql.bz2" % env)
 
 
 @roles('admin')
@@ -520,6 +566,15 @@ def do_migration(migration_script):
         run("cat %(repo_path)s/migrations/%(migration_script)s.mysql "
             "|mysql --host=%(db_host)s --user=%(db_root_user)s "
             "--password=%(db_root_pass)s %(project_name)s" % env)
+
+
+def local_migration(migration_script):
+    env.migration_script = migration_script
+
+    if env.db_type == 'postgresql':
+        local("cat migrations/%(migration_script)s.psql |psql %(project_name)s" % env)
+    else:
+        local("cat migrations/%(migration_script)s.mysql |mysql %(project_name)s" % env)
 
 
 # Management commands
@@ -579,6 +634,8 @@ def clear_nginx_cache():
 
     if confirm("Are you sure? This can bring the servers to their knees..."):
         sudo('rm -Rf /mnt/nginx-cache/%(project_name)s/*' % env)
+        for site in env.django_sites:
+            sudo('rm -Rf /mnt/nginx-cache/%s_%s/*' % (env.project_name, site))
 
 
 @roles('admin')
