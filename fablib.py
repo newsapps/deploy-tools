@@ -443,7 +443,7 @@ def destroy_database():
                    "the %s database?" % env.settings):
             if env.db_type == 'postgresql':
                 sudo('sv stop %(project_name)s' % env)
-                run('PGPASSWORD=%(db_root_pass)s dropdb --host=%(db_host)s --username=%(db_root_user)s %(project_name)s' % env)
+                run('PGPASSWORD=%(database_password)s dropdb --host=%(db_host)s --username=%(project_name)s %(project_name)s' % env)
                 run('PGPASSWORD=%(db_root_pass)s dropuser --host=%(db_host)s --username=%(db_root_user)s %(project_name)s' % env)
                 sudo('sv start %(project_name)s' % env)
             else:
@@ -767,6 +767,7 @@ try:
     import shutil
 
     ec2_conn = boto.connect_ec2()
+    _s3conn = S3Connection()
 
     def aws(cluster):
         """
@@ -848,7 +849,7 @@ try:
 
         tempdir = tempfile.mkdtemp(env['project_name'])
 
-        conn = S3Connection()
+        conn = _s3conn
         bucket = conn.get_bucket(bucket)
         existing_key_dict = dict((k.name, k) for k in bucket.list(env.project_name))
         for keyname, absolute_path in _find_file_paths(directory):
