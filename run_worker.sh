@@ -30,13 +30,16 @@ else
     if [ -z "$SITE" ]
     then
       export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${TARGET}
+      CELERY="$ROOT/manage.py celery worker"
     else
       export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${SITE}_${TARGET}
+      HOSTNAME=${SITE}.`hostname`
+      CELERY="$ROOT/manage.py celery worker --hostname=${HOSTNAME}"
     fi
   else
     export DJANGO_SETTINGS_MODULE=$PROJECT.${TARGET}_settings
+    CELERY="$ROOT/manage.py celery worker"
   fi
-  CELERY="$ROOT/manage.py celery worker"
 fi
 
 if [ -f $SECRETS ]
