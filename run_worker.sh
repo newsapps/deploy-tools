@@ -35,8 +35,8 @@ else
     fi
   else
     export DJANGO_SETTINGS_MODULE=$PROJECT.${TARGET}_settings
-    CELERY="$ROOT/manage.py celery worker"
   fi
+  CELERY="$ROOT/manage.py celery worker"
 fi
 
 if [ -f $SECRETS ]
