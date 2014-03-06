@@ -138,7 +138,7 @@ def setup():
 @roles('app')
 def install_gunicorn():
     """
-    Link up and install the runit script for gunicorn
+    Link up and install the runit scripts for gunicorn
     """
     with settings(hide('warnings'), warn_only=True):
         # Stop all the gunicorn runit services and delete them
@@ -159,13 +159,11 @@ def install_gunicorn():
              '/etc/service/%(project_name)s/run' % env)
     elif exists('%(path)s/tools/run_server.sh' % env):
         # install the generic tools run_server.sh script
-        sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s" > '
-             '/etc/service/%(project_name)s/run' % env)
+        sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s" > /etc/service/%(project_name)s/run' % env)
         sudo('chmod +x /etc/service/%(project_name)s/run' % env)
         for slug in env.django_sites:
             with settings(site=slug):
-                sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s %(site)s" > '
-                     '/etc/service/%(project_name)s_%(site)s/run' % env)
+                sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_server.sh %(settings)s %(project_name)s %(gunicorn_workers)s %(site)s" > /etc/service/%(project_name)s_%(site)s/run' % env)
                 sudo('chmod +x /etc/service/%(project_name)s_%(site)s/run' % env)
 
     with settings(hide('warnings'), warn_only=True):
@@ -174,6 +172,7 @@ def install_gunicorn():
         sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s.error.log' % env)
         sudo('chgrp www-data /home/newsapps/logs/%(project_name)s.error.log' % env)
         # start the new servers
+        sudo('sv start %s' % env.project_name)
         for slug in env.django_sites:
             sudo('sv start %s_%s' % (env.project_name, slug))
 
@@ -189,20 +188,34 @@ def install_celery():
             sudo('sv stop %(project_name)s_worker' % env)
             sudo('rm -Rf /etc/service/%(project_name)s_worker' % env)
 
+        # setup the runit service directories
         sudo('mkdir /etc/service/%(project_name)s_worker' % env)
+        for slug in env.django_sites:
+            sudo('mkdir /etc/service/%s_%s_worker' % (env.project_name, slug))
+
         if exists('%(path)s/run_%(settings)s_worker.sh' % env):
+            # install a custom run_[staging|production]_worker.sh script
             sudo('ln -s %(path)s/run_%(settings)s_worker.sh '
                  '/etc/service/%(project_name)s_worker/run' % env)
         elif exists('%(path)s/tools/run_worker.sh' % env):
-            sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_worker.sh %(settings)s %(project_name)s %(celery_workers)s" > '
-                 '/etc/service/%(project_name)s_worker/run' % env)
+            # install the generic tools run_worker.sh script
+            sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_worker.sh %(settings)s %(project_name)s %(celery_workers)s" > /etc/service/%(project_name)s_worker/run' % env)
             sudo('chmod +x /etc/service/%(project_name)s_worker/run' % env)
 
+            for slug in env.django_sites:
+                with settings(site=slug):
+                    sudo('echo "#!/bin/sh\nexec %(path)s/tools/run_worker.sh %(settings)s %(project_name)s %(celery_workers)s %(site)s" > /etc/service/%(project_name)s_%(site)s_worker/run' % env)
+                    sudo('chmod +x /etc/service/%(project_name)s_%(site)s_worker/run' % env)
+
         with settings(hide('warnings'), warn_only=True):
+            # make sure the log files are setup properly
             sudo('touch /home/newsapps/logs/%(project_name)s-worker.error.log' % env)
             sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s-worker.error.log' % env)
             sudo('chgrp www-data /home/newsapps/logs/%(project_name)s-worker.error.log' % env)
+            # start the new servers
             sudo('sv start %(project_name)s_worker' % env)
+            for slug in env.django_sites:
+                sudo('sv start %s_%s_worker' % (env.project_name, slug))
 
 
 @parallel
@@ -325,6 +338,8 @@ def reboot_celery():
         print(colors.red(
             "FORCING RESTART OF CELERY - You should use reload_celery"))
         sudo('sv restart %(project_name)s_worker' % env)
+        for site in env.django_sites:
+            sudo('sv restart %s_%s_worker' % (env.project_name, site))
     else:
         print(colors.red("You must set env.use_celery to True"))
 
@@ -362,6 +377,8 @@ def reload_celery():
     if env.use_celery:
         print(colors.green("Gracefully reloading celery"))
         sudo('sv hup %(project_name)s_worker' % env)
+        for site in env.django_sites:
+            sudo('sv hup %s_%s_worker' % (env.project_name, site))
     else:
         print(colors.red("You must set env.use_celery to True"))
 

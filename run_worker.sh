@@ -12,6 +12,7 @@ fi
 TARGET=$1
 PROJECT=$2
 WORKERS=${3:-'2'}
+SITE=${4:-''}
 
 USE_ACCOUNT=www-data
 ROOT=/home/newsapps/sites/$PROJECT
@@ -24,14 +25,14 @@ if [ -f $ROOT/application.py ]
 then
   CELERY="celery worker"
 else
-  if [ -d $ROOT/$PROJECT/configs ]
+  if [ -d $ROOT/$PROJECT/settings ]
   then
-    export DJANGO_SETTINGS_MODULE=$PROJECT.configs.$TARGET.settings
-    export PYTHONPATH=$ROOT/$PROJECT:$ROOT
-    CELERY="$ROOT/manage.py celery worker"
-  elif [ -d $ROOT/$PROJECT/settings ]
-  then
-    export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${TARGET}
+    if [ -z "$SITE" ]
+    then
+      export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${TARGET}
+    else
+      export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${SITE}_${TARGET}
+    fi
   else
     export DJANGO_SETTINGS_MODULE=$PROJECT.${TARGET}_settings
     CELERY="$ROOT/manage.py celery worker"
