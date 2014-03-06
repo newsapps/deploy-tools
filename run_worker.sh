@@ -20,26 +20,25 @@ VIRTUAL_ENV=/home/newsapps/.virtualenvs/$PROJECT
 ERROR_LOG=/home/newsapps/logs/$PROJECT.error.log
 WORKER_ERROR_LOG=/home/newsapps/logs/$PROJECT-worker.error.log
 SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
+HOSTNAME=${PROJECT}.`hostname`
 
 if [ -f $ROOT/application.py ]
 then
-  CELERY="celery worker"
+  CELERY="celery worker --hostname=${HOSTNAME}"
 else
   if [ -d $ROOT/$PROJECT/settings ]
   then
     if [ -z "$SITE" ]
     then
       export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${TARGET}
-      CELERY="$ROOT/manage.py celery worker"
     else
       export DJANGO_SETTINGS_MODULE=$PROJECT.settings.${SITE}_${TARGET}
-      HOSTNAME=${SITE}.`hostname`
-      CELERY="$ROOT/manage.py celery worker --hostname=${HOSTNAME}"
+      HOSTNAME=${SITE}.${HOSTNAME}
     fi
   else
     export DJANGO_SETTINGS_MODULE=$PROJECT.${TARGET}_settings
-    CELERY="$ROOT/manage.py celery worker"
   fi
+  CELERY="$ROOT/manage.py celery worker --hostname=${HOSTNAME}"
 fi
 
 if [ -f $SECRETS ]
