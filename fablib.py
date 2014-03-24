@@ -746,12 +746,16 @@ def list_apps():
     run('ls -1 /etc/service/')
 
 
+@parallel
+@roles('app')
 def stop_app():
     sudo('sv stop %s' % env.project_name)
     for site in env.django_sites:
         sudo('sv stop %s_%s' % (env.project_name, site))
 
 
+@parallel
+@roles('app')
 def start_app():
     sudo('sv start %s' % env.project_name)
     for site in env.django_sites:
