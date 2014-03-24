@@ -755,7 +755,7 @@ def stop_app():
 def start_app():
     sudo('sv start %s' % env.project_name)
     for site in env.django_sites:
-        sudo('sv stop %s_%s' % (env.project_name, site))
+        sudo('sv start %s_%s' % (env.project_name, site))
 
 
 try:
