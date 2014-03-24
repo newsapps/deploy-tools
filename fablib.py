@@ -746,16 +746,16 @@ def list_apps():
     run('ls -1 /etc/service/')
 
 
-def stop_app(name=None):
-    if name is None:
-        name = env.project_name
-    sudo('sv stop %s' % name)
+def stop_app():
+    sudo('sv stop %s' % env.project_name)
+    for site in env.django_sites:
+        sudo('sv stop %s_%s' % (env.project_name, site))
 
 
-def start_app(name=None):
-    if name is None:
-        name = env.project_name
-    sudo('sv start %s' % name)
+def start_app():
+    sudo('sv start %s' % env.project_name)
+    for site in env.django_sites:
+        sudo('sv stop %s_%s' % (env.project_name, site))
 
 
 try:
