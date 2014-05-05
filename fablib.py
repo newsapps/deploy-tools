@@ -320,12 +320,13 @@ def reboot():
 @parallel
 @roles('app')
 def reboot_gunicorn():
-    print(colors.red(
-        "FORCING RESTART OF GUNICORN - You should use reload_gunicorn"))
-    sudo('sv restart %(project_name)s' % env)
-    for site in env.django_sites:
-        sudo('sv restart %s_%s' % (env.project_name, site))
-    sudo('service nginx reload')
+    if env.use_gunicorn:
+        print(colors.red(
+            "FORCING RESTART OF GUNICORN - You should use reload_gunicorn"))
+        sudo('sv restart %(project_name)s' % env)
+        for site in env.django_sites:
+            sudo('sv restart %s_%s' % (env.project_name, site))
+        sudo('service nginx reload')
 
 
 @parallel
