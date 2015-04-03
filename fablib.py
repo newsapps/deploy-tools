@@ -168,9 +168,9 @@ def install_gunicorn():
 
     with settings(hide('warnings'), warn_only=True):
         # make sure the log files are setup properly
-        sudo('touch /home/newsapps/logs/%(project_name)s.error.log' % env)
-        sudo('chmod ug+rw /home/newsapps/logs/%(project_name)s.error.log' % env)
-        sudo('chgrp www-data /home/newsapps/logs/%(project_name)s.error.log' % env)
+        sudo('touch ~/logs/%(project_name)s.error.log' % env)
+        sudo('chmod ug+rw ~/logs/%(project_name)s.error.log' % env)
+        sudo('chgrp www-data ~/logs/%(project_name)s.error.log' % env)
         # start the new servers
         sudo('sv start %s' % env.project_name)
         for slug in env.django_sites:
