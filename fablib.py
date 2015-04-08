@@ -106,9 +106,7 @@ def setup():
         # setup virtualenv
         run('mkvirtualenv %(project_name)s' % env)
 
-    if env.settings == 'vagrant':
-        run('ln -s /vagrant %(path)s' % env)
-    else:
+    if env.settings != 'vagrant':
         # clone the project
         run('git clone %(repository_url)s %(path)s' % env)
 
