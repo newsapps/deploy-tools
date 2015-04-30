@@ -20,6 +20,7 @@ VIRTUAL_ENV=/home/newsapps/.virtualenvs/$PROJECT
 ERROR_LOG=/home/newsapps/logs/$PROJECT.error.log
 WORKER_ERROR_LOG=/home/newsapps/logs/$PROJECT-worker.error.log
 SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
+SENDGRID=/home/newsapps/sites/secrets/sendgrid_secrets.sh
 HOSTNAME=${PROJECT}.`hostname`
 
 if [ -f $ROOT/application.py ]
@@ -44,6 +45,7 @@ fi
 if [ -f $SECRETS ]
 then
   . $SECRETS
+  . $SENDGRID
 fi
 
 . $VIRTUAL_ENV/bin/activate

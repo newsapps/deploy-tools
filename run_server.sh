@@ -25,6 +25,7 @@ else
 fi
 ERROR_LOG=/home/newsapps/logs/${PROJECT}.error.log
 SECRETS=/home/newsapps/sites/secrets/${TARGET}_secrets.sh
+SENDGRID=/home/newsapps/sites/secrets/sendgrid_secrets.sh
 
 export DEPLOYMENT_TARGET=$TARGET
 
@@ -61,6 +62,7 @@ fi
 if [ -f $SECRETS ]
 then
   . $SECRETS
+  . $SENDGRID
 fi
 
 cd $ROOT
